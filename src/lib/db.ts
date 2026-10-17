@@ -96,31 +96,35 @@ CREATE INDEX IF NOT EXISTS passenger_profiles_sort_idx ON passenger_profiles(sor
 const SEED_PROFILES: { name: string; description: string; sort_order: number; background_url: string }[] = [
   {
     name: '普通成人',
-    description: '配合度高的常规旅客，按标准流程办理值机。',
+    description: '语气平和、配合度高。按默认航班信息办理，不主动刁难。',
     sort_order: 1,
     background_url: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1200&q=80',
   },
   {
     name: '急脾气',
-    description: '赶时间、容易不耐烦，要求办理迅速。',
+    description:
+      '赶时间，语速快，容易不耐烦。会说「快点行不行」「我要误机了」。学生流程慢或重复询问时明显焦躁，但仍要办完值机。',
     sort_order: 2,
     background_url: 'https://images.unsplash.com/photo-1544620341-1adc2baa1cae?w=1200&q=80',
   },
   {
     name: '老年旅客',
-    description: '语速慢、听力一般，需要耐心解释。',
+    description:
+      '语速慢，听力一般，可能听不清专业词。需要学生说慢一点、重复航班与登机口。危险品提示听不懂时，要学生用通俗话解释。',
     sort_order: 3,
     background_url: 'https://images.unsplash.com/photo-1529074963764-98f45c47344b?w=1200&q=80',
   },
   {
     name: '行李敏感',
-    description: '特别关心托运与危险品，会追问细节。',
+    description:
+      '特别关心行李能不能带、会不会丢。危险品提示说不全会追问打火机、充电宝、液体等；可能声称包里有充电宝，看学生如何处理。',
     sort_order: 4,
     background_url: 'https://images.unsplash.com/photo-1569154941061-e231b4725ef1?w=1200&q=80',
   },
   {
     name: '首次乘机',
-    description: '不懂流程，需要主动指引与安抚。',
+    description:
+      '不太懂值机流程，会问「接下来我干什么」「登机口在哪」。需要学生主动指引；若未指引安检方向，会再问一次。',
     sort_order: 5,
     background_url: 'https://images.unsplash.com/photo-1474302770737-173ee4aba716?w=1200&q=80',
   },
@@ -154,6 +158,14 @@ export async function ensureDb(): Promise<void> {
             `INSERT INTO passenger_profiles (id, name, description, background_url, is_active, sort_order)
              VALUES ($1,$2,$3,$4,true,$5)`,
             [crypto.randomUUID(), item.name, item.description, item.background_url, item.sort_order]
+          );
+        }
+      } else {
+        // 同步种子画像说明：性格细节放在 DB，由接通时注入，不写死在陪练 Bot 人设里
+        for (const item of SEED_PROFILES) {
+          await p.query(
+            `UPDATE passenger_profiles SET description = $2, updated_at = now() WHERE name = $1`,
+            [item.name, item.description]
           );
         }
       }

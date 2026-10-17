@@ -17,6 +17,7 @@ import { apiGet } from '@/lib/client-api';
 import { toast } from 'sonner';
 import { TrainingRecord, RADAR_DIMENSIONS } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { DialogueTranscript } from '@/components/dialogue-transcript';
 
 function scoreTone(v: number) {
   if (v >= 85) return 'text-emerald-400';
@@ -132,6 +133,17 @@ function ResultInner() {
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+
+        {/* 对话回放 */}
+        <div className="mx-auto max-w-md px-4 pb-4 pt-6">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
+            <h2 className="pb-3 text-sm font-semibold text-slate-300">对话记录</h2>
+            <DialogueTranscript
+              messages={record.result.transcript}
+              passengerName={record.profile_name || '旅客'}
+            />
           </div>
         </div>
 

@@ -136,6 +136,37 @@ body {
   @apply font-sans;
 }
 
+/* 全局滚动条：细条、圆角、低对比，适配深色通话/管理页 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(186, 230, 253, 0.65);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* 通话声纹波形动画 */
 @keyframes wave-bounce {
   0%, 100% { transform: scaleY(0.35); }

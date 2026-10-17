@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { DialogueTranscript } from '@/components/dialogue-transcript';
 
 function fmtDate(s?: string) {
   if (!s) return '';
@@ -369,6 +370,13 @@ function RecordsTab() {
                     <li key={i} className="text-xs leading-relaxed text-slate-300">· {s}</li>
                   ))}
                 </ul>
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-semibold">对话记录</p>
+                <DialogueTranscript
+                  messages={view.result.transcript}
+                  passengerName={view.profile_name || '旅客'}
+                />
               </div>
             </div>
           )}
