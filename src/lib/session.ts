@@ -1,7 +1,12 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 
 function secret() {
-  return process.env.SESSION_SECRET || process.env.COZE_WORKLOAD_API_TOKEN || 'zhiji-dev-session';
+  return (
+    process.env.SESSION_SECRET ||
+    process.env.ZJ_API_TOKEN ||
+    process.env.COZE_WORKLOAD_API_TOKEN ||
+    'zhiji-dev-session'
+  );
 }
 
 /** 签发简易会话 token：uid.exp.sig */

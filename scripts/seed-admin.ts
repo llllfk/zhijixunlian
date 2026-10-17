@@ -1,6 +1,6 @@
 /**
  * 一次性初始化脚本（仅 DEV 环境）：创建管理员账号。
- * 用法：COZE_PROJECT_ENV=DEV npx tsx scripts/seed-admin.ts
+ * 用法：APP_ENV=DEV npx tsx scripts/seed-admin.ts
  */
 import { getSupabaseClient } from '../src/storage/database/supabase-client';
 
@@ -9,7 +9,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_INIT_PASSWORD || 'Admin@123456';
 const ADMIN_NAME = '管理员';
 
 async function main() {
-  if (process.env.COZE_PROJECT_ENV !== 'DEV') {
+  if ((process.env.APP_ENV || process.env.COZE_PROJECT_ENV) !== 'DEV') {
     console.error('❌ 仅 DEV 环境允许执行管理员初始化');
     process.exit(1);
   }

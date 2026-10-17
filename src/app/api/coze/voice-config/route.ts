@@ -25,8 +25,8 @@ export async function GET(req: NextRequest) {
     enabled: true,
     botId: COZE_CONFIG.tutorBotId,
     token: COZE_CONFIG.token,
-    baseWsURL: process.env.COZE_WS_BASE_URL || 'wss://ws.coze.cn',
-    voiceId: process.env.COZE_VOICE_ID || undefined,
+    baseWsURL: COZE_CONFIG.wsBaseUrl,
+    voiceId: COZE_CONFIG.voiceId || undefined,
     kickoff: buildPassengerKickoff(profileName, description),
     userId: auth.user_id,
   });

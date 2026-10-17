@@ -1,14 +1,25 @@
 /**
  * 扣子智能体接入配置与调用位。
  * 密钥一律从环境变量读取，禁止写入代码仓库。
+ * 注意：扣子平台自定义环境变量不能以 COZE_ 开头，统一用 ZJ_；本地旧名仅作兼容回退。
  */
 
+function env(...keys: string[]) {
+  for (const k of keys) {
+    const v = process.env[k];
+    if (v) return v;
+  }
+  return '';
+}
+
 export const COZE_CONFIG = {
-  apiBaseUrl: process.env.COZE_API_BASE_URL || 'https://api.coze.cn',
-  token: process.env.COZE_WORKLOAD_API_TOKEN || process.env.COZE_API_TOKEN || '',
-  spaceId: process.env.COZE_PROJECT_SPACE_ID || '',
-  tutorBotId: process.env.COZE_TUTOR_BOT_ID || '',
-  evaluatorBotId: process.env.COZE_EVALUATOR_BOT_ID || '',
+  apiBaseUrl: env('ZJ_API_BASE_URL', 'COZE_API_BASE_URL') || 'https://api.coze.cn',
+  token: env('ZJ_API_TOKEN', 'COZE_WORKLOAD_API_TOKEN', 'COZE_API_TOKEN'),
+  spaceId: env('ZJ_SPACE_ID', 'COZE_PROJECT_SPACE_ID'),
+  tutorBotId: env('ZJ_TUTOR_BOT_ID', 'COZE_TUTOR_BOT_ID'),
+  evaluatorBotId: env('ZJ_EVALUATOR_BOT_ID', 'COZE_EVALUATOR_BOT_ID'),
+  voiceId: env('ZJ_VOICE_ID', 'COZE_VOICE_ID'),
+  wsBaseUrl: env('ZJ_WS_BASE_URL', 'COZE_WS_BASE_URL') || 'wss://ws.coze.cn',
 };
 
 /** 未配置 Bot 或未配置 token 时走 mock */

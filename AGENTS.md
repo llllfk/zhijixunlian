@@ -4,10 +4,10 @@
 民航旅客地面服务（值机柜台）语音陪练 Web 应用：学员选画像 → 全屏背景 → 拨打电话 → 挂断 → 训练总结（雷达图 + 改进建议）；含管理后台。手机优先。
 
 ## 扣子双智能体接入（关键）
-- 配置位集中在 `src/lib/coze.ts`（`COZE_CONFIG`），密钥一律走环境变量，**禁止写死到仓库**：
-  - `COZE_TUTOR_BOT_ID`：陪练通话智能体（通话页 SSE 由 `src/app/api/coze/call/route.ts` 消费，未配置回退 `src/lib/mock.ts` 脚本）
-  - `COZE_EVALUATOR_BOT_ID`：训练评价智能体（挂断后由 `src/lib/evaluator.ts` 调用，未配置回退 `mockEval`）
-  - `COZE_API_BASE_URL` / `COZE_WORKLOAD_API_TOKEN`
+- 配置位集中在 `src/lib/coze.ts`（`COZE_CONFIG`），密钥一律走环境变量，**禁止写死到仓库**。扣子平台自定义变量**不能以 `COZE_` 开头**，统一用 `ZJ_`：
+  - `ZJ_TUTOR_BOT_ID`：陪练通话智能体（通话页 SSE 由 `src/app/api/coze/call/route.ts` 消费，未配置回退 `src/lib/mock.ts` 脚本）
+  - `ZJ_EVALUATOR_BOT_ID`：训练评价智能体（挂断后由 `src/lib/evaluator.ts` 调用，未配置回退 `mockEval`）
+  - `ZJ_API_BASE_URL` / `ZJ_API_TOKEN` / `ZJ_SPACE_ID` / `ZJ_VOICE_ID` / `ZJ_WS_BASE_URL`
 - 前端是否 mock 由 `/api/coze/status` 判断。
 
 ## 鉴权与数据
