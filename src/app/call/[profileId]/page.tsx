@@ -16,6 +16,29 @@ function pickContent(event: unknown): string {
   return String(e?.data?.content || e?.data?.text || e?.content || '').trim();
 }
 
+function pickMessageType(event: unknown): string {
+  const e = event as { data?: { type?: string; message_type?: string }; type?: string };
+  return String(e?.data?.type || e?.data?.message_type || e?.type || '').toLowerCase();
+}
+
+/** 只保留旅客对白，过滤 verbose/工具包等控制消息 */
+function isPassengerAnswer(event: unknown, content: string): boolean {
+  if (!content.trim()) return false;
+  const type = pickMessageType(event);
+  if (type && type !== 'answer') return false;
+  if (content.includes('系统提示')) return false;
+  const trimmed = content.trim();
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const obj = JSON.parse(trimmed) as { msg_type?: string };
+      if (obj?.msg_type === 'generate_answer_finish' || obj?.msg_type) return false;
+    } catch {
+      /* 普通文本里碰巧带花括号，继续按对白处理 */
+    }
+  }
+  return true;
+}
+
 function pickConversationId(event: unknown): string | null {
   const e = event as { data?: { conversation_id?: string }; conversation_id?: string };
   return e?.data?.conversation_id || e?.conversation_id || null;
@@ -176,20 +199,26 @@ function CallInner() {
     });
     client.on(WsChatEventNames.CONVERSATION_MESSAGE_DELTA, (_n: string, event: unknown) => {
       const piece = pickContent(event);
-      if (!piece) return;
+      if (!isPassengerAnswer(event, piece)) return;
       const cid = pickConversationId(event);
       if (cid) setConversationId(cid);
       passengerBufRef.current += piece;
       setLivePassenger(passengerBufRef.current);
     });
     client.on(WsChatEventNames.CONVERSATION_MESSAGE_COMPLETED, (_n: string, event: unknown) => {
-      const full = pickContent(event) || passengerBufRef.current;
+      const fromEvent = pickContent(event);
+      const fromBuf = passengerBufRef.current;
       passengerBufRef.current = '';
       setLivePassenger('');
       const role = (event as any)?.data?.role;
-      // 开场用文本注入画像，不记入学员发言
-      if (role === 'user' || full.includes('系统提示')) return;
-      pushMsg('passenger', full);
+      // 开场用文本注入画像，不记入学员发言；verbose 结束包也不进气泡
+      if (role === 'user') return;
+      if (isPassengerAnswer(event, fromEvent)) {
+        pushMsg('passenger', fromEvent);
+        return;
+      }
+      // 结束控制包可能盖住正文：缓冲里若已有对白则落盘
+      if (fromBuf.trim()) pushMsg('passenger', fromBuf.trim());
     });
     client.on(WsChatEventNames.CONVERSATION_AUDIO_TRANSCRIPT_UPDATE, (_n: string, event: unknown) => {
       setLiveStudent(pickContent(event));
