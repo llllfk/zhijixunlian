@@ -80,24 +80,24 @@ function UsersTab() {
                   {u.role === 'admin' ? <Badge className="bg-amber-400/20 text-amber-300">管理员</Badge> : <Badge className="bg-slate-500/20 text-slate-300">学员</Badge>}
                   {!u.is_active && <Badge className="bg-red-500/20 text-red-300">已禁用</Badge>}
                 </div>
-                <p className="text-xs text-slate-500">{u.phone || u.email || '—'}</p>
+                <p className="text-xs text-slate-300">{u.phone || u.email || '—'}</p>
               </div>
             </div>
-            <span className="text-xs text-slate-600">{fmtDate(u.created_at)}</span>
+            <span className="text-xs text-slate-400">{fmtDate(u.created_at)}</span>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Switch checked={u.is_active} onCheckedChange={() => toggle(u)} />
-            <span className="mr-2 text-xs text-slate-500">{u.is_active ? '启用中' : '已禁用'}</span>
+            <span className="mr-2 text-xs text-slate-200">{u.is_active ? '启用中' : '已禁用'}</span>
             {u.role === 'user' ? (
-              <Button size="sm" variant="outline" className="h-8 border-white/15 bg-transparent" onClick={() => setRole(u, 'admin')}>
+              <Button size="sm" variant="outline" className="h-8 border-white/20 bg-transparent text-slate-100 hover:bg-white/10 hover:text-white" onClick={() => setRole(u, 'admin')}>
                 设为管理员
               </Button>
             ) : (
-              <Button size="sm" variant="outline" className="h-8 border-white/15 bg-transparent" onClick={() => setRole(u, 'user')}>
+              <Button size="sm" variant="outline" className="h-8 border-white/20 bg-transparent text-slate-100 hover:bg-white/10 hover:text-white" onClick={() => setRole(u, 'user')}>
                 转为学员
               </Button>
             )}
-            <Button size="sm" variant="outline" className="h-8 border-white/15 bg-transparent" onClick={() => setResetTarget(u)}>
+            <Button size="sm" variant="outline" className="h-8 border-white/20 bg-transparent text-slate-100 hover:bg-white/10 hover:text-white" onClick={() => setResetTarget(u)}>
               <KeyRound className="mr-1 h-3.5 w-3.5" />
               重置密码
             </Button>
@@ -190,7 +190,7 @@ function ProfilesTab() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500">共 {profiles.length} 个画像</p>
+        <p className="text-xs text-slate-300">共 {profiles.length} 个画像</p>
         <Button size="sm" onClick={openCreate}>
           <Plus className="mr-1 h-4 w-4" />
           新增画像
@@ -212,8 +212,8 @@ function ProfilesTab() {
               <span className="font-semibold">{p.name}</span>
               {!p.is_active && <Badge className="bg-red-500/20 text-red-300">停用</Badge>}
             </div>
-            <p className="truncate text-xs text-slate-400">{p.description}</p>
-            <p className="text-[11px] text-slate-600">排序 {p.sort_order}</p>
+            <p className="truncate text-xs text-slate-300">{p.description}</p>
+            <p className="text-[11px] text-slate-400">排序 {p.sort_order}</p>
           </div>
           <div className="flex flex-col items-center gap-2">
             <Switch checked={p.is_active} onCheckedChange={() => toggle(p)} />
@@ -324,13 +324,13 @@ function RecordsTab() {
           <div className="flex items-center justify-between">
             <div>
               <div className="font-semibold">{r.profile_name || '旅客'}</div>
-              <p className="text-xs text-slate-500">学员：{nameOf(r.user_id)} · {fmtDate(r.created_at)}</p>
-              <p className="text-xs text-slate-500">时长 {Math.floor((r.duration_seconds || 0) / 60)} 分 {r.duration_seconds % 60} 秒</p>
+              <p className="text-xs text-slate-300">学员：{nameOf(r.user_id)} · {fmtDate(r.created_at)}</p>
+              <p className="text-xs text-slate-300">时长 {Math.floor((r.duration_seconds || 0) / 60)} 分 {r.duration_seconds % 60} 秒</p>
             </div>
             <span className={`text-xl font-bold ${(r.score ?? 0) >= 85 ? 'text-emerald-400' : (r.score ?? 0) >= 70 ? 'text-amber-300' : 'text-red-400'}`}>{r.score ?? '—'}</span>
           </div>
           <div className="mt-3 flex gap-2">
-            <Button size="sm" variant="outline" className="h-8 border-white/15 bg-transparent" onClick={() => setView(r)}>
+            <Button size="sm" variant="outline" className="h-8 border-white/20 bg-transparent text-slate-100 hover:bg-white/10 hover:text-white" onClick={() => setView(r)}>
               查看详情
             </Button>
             <Button size="sm" variant="outline" className="h-8 border-red-500/30 text-red-400" onClick={() => remove(r)}>
@@ -392,10 +392,25 @@ function AdminInner() {
 
       <div className="mx-auto max-w-md px-4 py-4">
         <Tabs defaultValue="users">
-          <TabsList className="grid w-full grid-cols-3 bg-white/[0.05]">
-            <TabsTrigger value="users">学员账号</TabsTrigger>
-            <TabsTrigger value="profiles">旅客画像</TabsTrigger>
-            <TabsTrigger value="records">训练记录</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 bg-white/10 text-slate-300">
+            <TabsTrigger
+              value="users"
+              className="text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900"
+            >
+              学员账号
+            </TabsTrigger>
+            <TabsTrigger
+              value="profiles"
+              className="text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900"
+            >
+              旅客画像
+            </TabsTrigger>
+            <TabsTrigger
+              value="records"
+              className="text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900"
+            >
+              训练记录
+            </TabsTrigger>
           </TabsList>
           <div className="mt-4">
             <TabsContent value="users">
