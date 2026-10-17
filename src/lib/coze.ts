@@ -4,6 +4,8 @@
  * 注意：扣子平台自定义环境变量不能以 COZE_ 开头，统一用 ZJ_；本地旧名仅作兼容回退。
  */
 
+import fallbackVoicesJson from './fallback-voices.json';
+
 function env(...keys: string[]) {
   for (const k of keys) {
     const v = process.env[k];
@@ -230,9 +232,23 @@ export type CozeVoiceItem = {
   isSystem: boolean;
 };
 
+/** 接口无权限时的内置中文音色（仅名称可选，试听走合成接口） */
+export const FALLBACK_VOICES: CozeVoiceItem[] = (fallbackVoicesJson as Array<{
+  id: string;
+  name: string;
+  language?: string;
+  isSystem?: boolean;
+}>).map((v) => ({
+  id: v.id,
+  name: v.name,
+  language: v.language || '中文',
+  previewUrl: null,
+  isSystem: v.isSystem !== false,
+}));
+
 /** 拉取扣子可用音色（含试听地址），供管理端选型 */
 export async function listCozeVoices(): Promise<CozeVoiceItem[]> {
-  if (!COZE_CONFIG.token) throw new Error('未配置 API Token');
+  if (!COZE_CONFIG.token) throw new Error('未配置 ZJ_API_TOKEN');
   const out: CozeVoiceItem[] = [];
   let page = 1;
   let hasMore = true;
@@ -241,11 +257,25 @@ export async function listCozeVoices(): Promise<CozeVoiceItem[]> {
     url.searchParams.set('page_num', String(page));
     url.searchParams.set('page_size', '100');
     const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${COZE_CONFIG.token}` },
+      headers: {
+        Authorization: `Bearer ${COZE_CONFIG.token}`,
+        'Content-Type': 'application/json',
+      },
     });
-    if (!res.ok) throw new Error(`音色列表请求失败: ${res.status}`);
-    const json = await res.json();
-    if (json?.code !== 0) throw new Error(json?.msg || '音色列表返回异常');
+    const text = await res.text();
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      /* ignore */
+    }
+    if (!res.ok) {
+      const detail = json?.msg || json?.message || text.slice(0, 160);
+      throw new Error(`音色列表请求失败: ${res.status}${detail ? ` ${detail}` : ''}`);
+    }
+    if (json?.code !== 0 && json?.code != null) {
+      throw new Error(json?.msg || `音色列表返回异常 code=${json.code}`);
+    }
     const list = Array.isArray(json?.data?.voice_list) ? json.data.voice_list : [];
     for (const v of list) {
       const id = String(v.voice_id || '');
