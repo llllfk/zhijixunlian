@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Plane, Mail, Lock, User, Loader2 } from 'lucide-react';
-import { getSupabaseBrowserClientWithRetry } from '@/lib/supabase-browser';
-import { apiSend } from '@/lib/client-api';
+import { apiSend, setSessionToken } from '@/lib/client-api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,18 +34,12 @@ export default function RegisterPage() {
     }
     setLoading(true);
     try {
-      const supabase = await getSupabaseBrowserClientWithRetry();
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) throw new Error(error.message);
-      if (!data.user) throw new Error('注册未成功，请重试');
-
-      // 注册成功即写入用户资料
-      try {
-        await apiSend('/api/auth/register', 'POST', { name: name.trim(), email: data.user.email });
-      } catch (err) {
-        await supabase.auth.signOut().catch(() => {});
-        throw err;
-      }
+      const data = await apiSend<{ token: string }>('/api/auth/register', 'POST', {
+        name: name.trim(),
+        email,
+        password,
+      });
+      setSessionToken(data.token);
 
       toast.success('注册成功，已自动登录');
       router.push('/');

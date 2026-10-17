@@ -1,47 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { ensureDb, getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/server-auth';
-import { PassengerProfile } from '@/lib/types';
 
-// 管理员：全部画像
 export async function GET(req: NextRequest) {
   try {
     await requireAdmin(req);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || '无权限' }, { status: e?.status || 403 });
+  } catch (e: unknown) {
+    const err = e as { message?: string; status?: number };
+    return NextResponse.json({ error: err?.message || '无权限' }, { status: err?.status || 403 });
   }
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('passenger_profiles')
-    .select('*')
-    .order('sort_order', { ascending: true });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ profiles: data as PassengerProfile[] });
+  await ensureDb();
+  const { rows } = await getPool().query(`SELECT * FROM passenger_profiles ORDER BY sort_order ASC`);
+  return NextResponse.json({ profiles: rows });
 }
 
-// 管理员：新增画像
 export async function POST(req: NextRequest) {
   try {
     await requireAdmin(req);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || '无权限' }, { status: e?.status || 403 });
+  } catch (e: unknown) {
+    const err = e as { message?: string; status?: number };
+    return NextResponse.json({ error: err?.message || '无权限' }, { status: err?.status || 403 });
   }
   const body = await req.json().catch(() => ({}));
   const name = String(body.name || '').trim();
   if (!name) return NextResponse.json({ error: '请填写画像名称' }, { status: 400 });
-
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('passenger_profiles')
-    .insert({
+  await ensureDb();
+  const { rows } = await getPool().query(
+    `INSERT INTO passenger_profiles (id, name, description, background_url, is_active, sort_order)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [
+      crypto.randomUUID(),
       name,
-      description: body.description || null,
-      background_url: body.background_url || null,
-      is_active: body.is_active !== false,
-      sort_order: Number(body.sort_order) || 0,
-    })
-    .select()
-    .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ profile: data });
+      body.description || null,
+      body.background_url || null,
+      body.is_active !== false,
+      Number(body.sort_order) || 0,
+    ]
+  );
+  return NextResponse.json({ profile: rows[0] });
 }

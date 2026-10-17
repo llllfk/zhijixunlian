@@ -1,24 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { ensureDb, getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/server-auth';
 
-// 更新账号：启用/禁用、角色
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin(req);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || '无权限' }, { status: e?.status || 403 });
+  } catch (e: unknown) {
+    const err = e as { message?: string; status?: number };
+    return NextResponse.json({ error: err?.message || '无权限' }, { status: err?.status || 403 });
   }
   const { id } = await ctx.params;
   const body = await req.json().catch(() => ({}));
-
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (typeof body.is_active === 'boolean') patch.is_active = body.is_active;
-  if (body.name) patch.name = String(body.name).trim();
-  if (body.role === 'admin' || body.role === 'user') patch.role = body.role;
-
-  const db = getSupabaseClient();
-  const { data, error } = await db.from('user_profiles').update(patch).eq('id', id).select().maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ user: data });
+  await ensureDb();
+  const { rows } = await getPool().query(
+    `UPDATE user_profiles SET
+       is_active = COALESCE($2, is_active),
+       name = COALESCE($3, name),
+       role = COALESCE($4, role),
+       updated_at = now()
+     WHERE id = $1
+     RETURNING id, email, name, role, is_active, created_at`,
+    [
+      id,
+      typeof body.is_active === 'boolean' ? body.is_active : null,
+      body.name ? String(body.name).trim() : null,
+      body.role === 'admin' || body.role === 'user' ? body.role : null,
+    ]
+  );
+  return NextResponse.json({ user: rows[0] || null });
 }

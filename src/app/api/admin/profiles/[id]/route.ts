@@ -1,43 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { ensureDb, getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/server-auth';
 
-// 管理员：更新/删除画像
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin(req);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || '无权限' }, { status: e?.status || 403 });
+  } catch (e: unknown) {
+    const err = e as { message?: string; status?: number };
+    return NextResponse.json({ error: err?.message || '无权限' }, { status: err?.status || 403 });
   }
   const { id } = await ctx.params;
   const body = await req.json().catch(() => ({}));
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (body.name) patch.name = String(body.name).trim();
-  if ('description' in body) patch.description = body.description;
-  if ('background_url' in body) patch.background_url = body.background_url;
-  if ('is_active' in body && typeof body.is_active === 'boolean') patch.is_active = body.is_active;
-  if ('sort_order' in body) patch.sort_order = Number(body.sort_order);
-
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('passenger_profiles')
-    .update(patch)
-    .eq('id', id)
-    .select()
-    .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ profile: data });
+  await ensureDb();
+  const { rows } = await getPool().query(
+    `UPDATE passenger_profiles SET
+       name = COALESCE($2, name),
+       description = CASE WHEN $3::boolean THEN $4 ELSE description END,
+       background_url = CASE WHEN $5::boolean THEN $6 ELSE background_url END,
+       is_active = COALESCE($7, is_active),
+       sort_order = COALESCE($8, sort_order),
+       updated_at = now()
+     WHERE id = $1 RETURNING *`,
+    [
+      id,
+      body.name ? String(body.name).trim() : null,
+      'description' in body,
+      body.description ?? null,
+      'background_url' in body,
+      body.background_url ?? null,
+      typeof body.is_active === 'boolean' ? body.is_active : null,
+      'sort_order' in body ? Number(body.sort_order) : null,
+    ]
+  );
+  return NextResponse.json({ profile: rows[0] || null });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin(req);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || '无权限' }, { status: e?.status || 403 });
+  } catch (e: unknown) {
+    const err = e as { message?: string; status?: number };
+    return NextResponse.json({ error: err?.message || '无权限' }, { status: err?.status || 403 });
   }
   const { id } = await ctx.params;
-  const db = getSupabaseClient();
-  const { error } = await db.from('passenger_profiles').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await ensureDb();
+  await getPool().query(`DELETE FROM passenger_profiles WHERE id = $1`, [id]);
   return NextResponse.json({ ok: true });
 }

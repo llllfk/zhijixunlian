@@ -10,7 +10,9 @@ export const healthCheck = pgTable("health_check", {
 export const userProfiles = pgTable(
 	"user_profiles",
 	{
-		id: varchar("id", { length: 36 }).primaryKey(), // 与 auth.users.id 对应
+		id: varchar("id", { length: 36 }).primaryKey(),
+		email: varchar("email", { length: 255 }).notNull(),
+		password_hash: text("password_hash").notNull(),
 		name: varchar("name", { length: 128 }).notNull(),
 		role: varchar("role", { length: 20 }).notNull().default("user"), // user | admin
 		is_active: boolean("is_active").notNull().default(true),

@@ -1,14 +1,22 @@
 'use client';
 
-// 前端登录态工具：统一从 supabase 浏览器客户端获取 session 与当前用户
-import { getSupabaseBrowserClientWithRetry, getSupabaseBrowserClientAsync } from '@/lib/supabase-browser';
+const TOKEN_KEY = 'zj_session';
+
+export function getSessionTokenSync(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
 
 export async function getSessionToken(): Promise<string | null> {
-  const supabase = await getSupabaseBrowserClientWithRetry();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  return session?.access_token ?? null;
+  return getSessionTokenSync();
+}
+
+export function setSessionToken(token: string) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearSessionToken() {
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 export async function apiGet<T = unknown>(path: string): Promise<T> {
@@ -43,6 +51,3 @@ export async function apiSend<T = unknown>(
   }
   return res.json() as Promise<T>;
 }
-
-export { getSupabaseBrowserClientAsync };
-export { getSupabaseBrowserClientWithRetry };

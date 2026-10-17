@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Phone, FileText, LogOut, ShieldCheck } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/components/auth';
-import { getSupabaseBrowserClientWithRetry } from '@/lib/supabase-browser';
+import { clearSessionToken } from '@/lib/client-api';
 import { Button } from '@/components/ui/button';
 
 function HomeInner() {
@@ -12,8 +12,7 @@ function HomeInner() {
   const router = useRouter();
 
   async function logout() {
-    const supabase = await getSupabaseBrowserClientWithRetry();
-    await supabase.auth.signOut();
+    clearSessionToken();
     router.replace('/login');
   }
 

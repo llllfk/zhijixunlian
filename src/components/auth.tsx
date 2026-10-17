@@ -2,8 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSupabaseBrowserClientWithRetry } from '@/lib/supabase-browser';
-import { apiGet } from '@/lib/client-api';
+import { apiGet, getSessionToken } from '@/lib/client-api';
 
 export interface MeProfile {
   id: string;
@@ -56,33 +55,15 @@ export function AuthProvider({
   useEffect(() => {
     let alive = true;
     (async () => {
-      const supabase = await getSupabaseBrowserClientWithRetry();
-      const { data } = await supabase.auth.getSession();
-
-      // 监听登录态变化
-      supabase.auth.onAuthStateChange(async (_event, session) => {
-        if (session?.access_token) {
-          const me = await fetchMe();
-          if (!alive) return;
-          setUser(me);
-          setLoading(false);
-        } else {
-          if (!alive) return;
-          setUser(null);
-          setLoading(false);
-        }
-      });
-
-      if (data.session?.access_token) {
+      const token = await getSessionToken();
+      if (token) {
         const me = await fetchMe();
         if (!alive) return;
         setUser(me);
-      } else {
-        if (!alive) return;
+      } else if (alive) {
         setUser(null);
       }
-      if (!alive) return;
-      setLoading(false);
+      if (alive) setLoading(false);
     })();
 
     return () => {

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { ensureDb, getPool } from './db';
+import { readSession } from './session';
 
 export interface AuthContext {
   user_id: string;
@@ -9,50 +10,26 @@ export interface AuthContext {
   is_active: boolean;
 }
 
-/**
- * 从请求头 x-session 解析当前登录用户与其角色信息。
- * 不抛错，返回 null 表示未登录/认证失败。
- */
 export async function resolveAuth(req: NextRequest): Promise<AuthContext | null> {
   const token = req.headers.get('x-session');
-  if (!token) return null;
-
-  const authClient = getSupabaseClient(token); // anon + token 校验身份
-  const { data: { user }, error } = await authClient.auth.getUser();
-  if (error || !user) return null;
-  if (!user.email && !user.phone) return null;
-
-  // 读取业务档案（服务端用 service_role，绕过 RLS）
-  const db = getSupabaseClient();
-  const { data: profile, error: pErr } = await db
-    .from('user_profiles')
-    .select('id, name, role, is_active')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (pErr) throw pErr;
-
-  if (!profile) {
-    // 首次登录兜底：自动补充档案（如老用户）
-    return {
-      user_id: user.id,
-      email: user.email ?? null,
-      name: (user.user_metadata?.full_name as string) || user.email || '学员',
-      role: 'user',
-      is_active: true,
-    };
-  }
-
+  const session = readSession(token);
+  if (!session) return null;
+  await ensureDb();
+  const { rows } = await getPool().query(
+    'SELECT id, email, name, role, is_active FROM user_profiles WHERE id = $1',
+    [session.uid]
+  );
+  const row = rows[0];
+  if (!row) return null;
   return {
-    user_id: user.id,
-    email: user.email ?? null,
-    name: profile.name,
-    role: profile.role,
-    is_active: profile.is_active,
+    user_id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.role === 'admin' ? 'admin' : 'user',
+    is_active: row.is_active,
   };
 }
 
-/** 校验管理员，未通过抛错由路由统一捕获 */
 export async function requireAdmin(req: NextRequest): Promise<AuthContext> {
   const ctx = await resolveAuth(req);
   if (!ctx) throw Object.assign(new Error('请先登录'), { status: 401 });

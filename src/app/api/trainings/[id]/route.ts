@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { ensureDb, getPool } from '@/lib/db';
 import { resolveAuth } from '@/lib/server-auth';
 
-// 某次训练详情（本人可见）
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await resolveAuth(req);
   if (!auth) return NextResponse.json({ error: '请先登录' }, { status: 401 });
-
   const { id } = await ctx.params;
-  const db = getSupabaseClient();
-  const { data, error } = await db
-    .from('training_records')
-    .select('*')
-    .eq('id', id)
-    .eq('user_id', auth.user_id)
-    .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!data) return NextResponse.json({ error: '记录不存在' }, { status: 404 });
-  return NextResponse.json({ record: data });
+  await ensureDb();
+  const { rows } = await getPool().query(
+    `SELECT * FROM training_records WHERE id = $1 AND user_id = $2`,
+    [id, auth.user_id]
+  );
+  if (!rows[0]) return NextResponse.json({ error: '记录不存在' }, { status: 404 });
+  return NextResponse.json({ record: rows[0] });
 }

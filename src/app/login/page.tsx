@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Plane, Mail, Lock, Loader2 } from 'lucide-react';
-import { getSupabaseBrowserClientWithRetry } from '@/lib/supabase-browser';
-import { apiGet } from '@/lib/client-api';
+import { apiSend, setSessionToken } from '@/lib/client-api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,13 +24,10 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      const supabase = await getSupabaseBrowserClientWithRetry();
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw new Error(error.message);
-
-      const me = await apiGet<{ user: { role: string } }>('/api/auth/me').catch(() => null);
+      const data = await apiSend<{ token: string; user: { role: string } }>('/api/auth/login', 'POST', { email, password });
+      setSessionToken(data.token);
       toast.success('登录成功');
-      if (me?.user?.role === 'admin') {
+      if (data.user?.role === 'admin') {
         router.push('/admin');
       } else {
         router.push('/');
