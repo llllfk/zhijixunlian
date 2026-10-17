@@ -18,6 +18,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DialogueTranscript } from '@/components/dialogue-transcript';
 
+function scoreTone(v: number) {
+  if (v >= 85) return { text: 'text-emerald-300', bar: 'bg-emerald-400' };
+  if (v >= 70) return { text: 'text-amber-300', bar: 'bg-amber-300' };
+  return { text: 'text-rose-300', bar: 'bg-rose-400' };
+}
+
 function fmtDate(s?: string) {
   if (!s) return '';
   const d = new Date(s);
@@ -342,43 +348,67 @@ function RecordsTab() {
       ))}
 
       <Dialog open={!!view} onOpenChange={(o) => !o && setView(null)}>
-        <DialogContent className="max-h-[80vh] max-w-md overflow-x-hidden overflow-y-auto bg-white text-slate-900">
-          <DialogHeader>
-            <DialogTitle className="text-slate-900">训练结果详情</DialogTitle>
+        <DialogContent className="max-h-[86vh] max-w-md gap-0 overflow-x-hidden overflow-y-auto border-white/10 bg-slate-950 p-0 text-white">
+          <DialogHeader className="sticky top-0 z-10 border-b border-white/10 bg-slate-950/95 px-5 py-4 text-left backdrop-blur">
+            <DialogTitle className="text-white">训练结果详情</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              {view ? `${nameOf(view.user_id)} · ${view.profile_name || '旅客'}` : ''}
+            </DialogDescription>
           </DialogHeader>
           {view?.result && (
-            <div className="space-y-4 text-slate-900">
-              <div className="flex items-center justify-between rounded-xl bg-slate-100 p-3">
-                <span className="text-sm text-slate-700">综合得分</span>
-                <span className="text-2xl font-bold text-slate-900">{view.score ?? view.result.total_score}</span>
-              </div>
-              <div>
-                <p className="mb-2 text-sm font-semibold text-slate-900">能力维度</p>
-                <div className="space-y-1.5">
-                  {RADAR_DIMENSIONS.map((k) => (
-                    <div key={k} className="flex items-center justify-between text-sm">
-                      <span className="text-slate-700">{k}</span>
-                      <span className="font-semibold text-slate-900">{(view.result?.dimensions as any)?.[k] ?? 0}</span>
-                    </div>
-                  ))}
+            <div className="space-y-4 px-4 py-4">
+              <div className="rounded-3xl border border-sky-400/20 bg-gradient-to-br from-sky-500/20 to-blue-600/10 px-5 py-5 text-center">
+                <p className="text-xs tracking-wide text-sky-200/80">综合得分</p>
+                <p className={`mt-1 text-5xl font-extrabold tabular-nums ${scoreTone(view.score ?? view.result.total_score).text}`}>
+                  {view.score ?? view.result.total_score}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-300">
+                  <span className="rounded-full bg-white/10 px-2.5 py-1">
+                    {Math.floor((view.duration_seconds || 0) / 60)} 分 {view.duration_seconds % 60} 秒
+                  </span>
+                  <span className="rounded-full bg-white/10 px-2.5 py-1">{fmtDate(view.created_at)}</span>
                 </div>
               </div>
-              <div>
-                <p className="mb-1.5 text-sm font-semibold text-slate-900">改进建议</p>
-                <ul className="space-y-1.5">
+
+              <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="mb-3 text-sm font-semibold text-slate-200">能力维度</p>
+                <div className="space-y-3">
+                  {RADAR_DIMENSIONS.map((k) => {
+                    const v = Number((view.result?.dimensions as any)?.[k] ?? 0);
+                    const tone = scoreTone(v);
+                    return (
+                      <div key={k}>
+                        <div className="mb-1 flex items-center justify-between text-xs">
+                          <span className="text-slate-300">{k}</span>
+                          <span className={`font-semibold tabular-nums ${tone.text}`}>{v}</span>
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                          <div className={`h-full rounded-full ${tone.bar}`} style={{ width: `${Math.max(0, Math.min(100, v))}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="mb-3 text-sm font-semibold text-slate-200">改进建议</p>
+                <ul className="space-y-2">
                   {(view.result.suggestions || []).map((s, i) => (
-                    <li key={i} className="text-sm leading-relaxed text-slate-800">· {s}</li>
+                    <li key={i} className="flex gap-2.5 rounded-2xl bg-white/[0.05] px-3 py-2.5 text-sm leading-relaxed text-slate-200">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-[11px] font-semibold text-sky-300">
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0 break-all">{s}</span>
+                    </li>
                   ))}
                 </ul>
-              </div>
-              <div>
-                <p className="mb-2 text-sm font-semibold text-slate-900">对话记录</p>
-                <DialogueTranscript
-                  tone="light"
-                  messages={view.result.transcript}
-                  passengerName={view.profile_name || '旅客'}
-                />
-              </div>
+              </section>
+
+              <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="mb-3 text-sm font-semibold text-slate-200">对话记录</p>
+                <DialogueTranscript messages={view.result.transcript} passengerName={view.profile_name || '旅客'} />
+              </section>
             </div>
           )}
         </DialogContent>
