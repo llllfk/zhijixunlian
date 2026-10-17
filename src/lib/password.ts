@@ -7,7 +7,8 @@ export function hashPassword(password: string): string {
   return `scrypt$16384$${salt}$${hash}`;
 }
 
-export function verifyPassword(password: string, stored: string): boolean {
+export function verifyPassword(password: string, stored: string | null | undefined): boolean {
+  if (!stored) return false;
   const parts = stored.split('$');
   if (parts.length !== 4 || parts[0] !== 'scrypt') return false;
   const [, , salt, hashHex] = parts;

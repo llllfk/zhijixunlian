@@ -11,7 +11,8 @@ export const userProfiles = pgTable(
 	"user_profiles",
 	{
 		id: varchar("id", { length: 36 }).primaryKey(),
-		email: varchar("email", { length: 255 }).notNull(),
+		email: varchar("email", { length: 255 }),
+		phone: varchar("phone", { length: 20 }),
 		password_hash: text("password_hash").notNull(),
 		name: varchar("name", { length: 128 }).notNull(),
 		role: varchar("role", { length: 20 }).notNull().default("user"), // user | admin

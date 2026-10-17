@@ -6,7 +6,8 @@ import { apiGet, getSessionToken } from '@/lib/client-api';
 
 export interface MeProfile {
   id: string;
-  email: string;
+  email?: string | null;
+  phone?: string | null;
   name: string;
   role: 'admin' | 'user';
   is_active: boolean;

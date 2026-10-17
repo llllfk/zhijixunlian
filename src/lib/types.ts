@@ -55,7 +55,8 @@ export interface UserProfileInfo {
   name: string;
   role: 'user' | 'admin';
   is_active: boolean;
-  email?: string;
+  email?: string | null;
+  phone?: string | null;
   created_at?: string;
 }
 

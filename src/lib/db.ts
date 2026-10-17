@@ -27,6 +27,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS user_profiles (
   id varchar(36) PRIMARY KEY,
   email varchar(255),
+  phone varchar(20),
   password_hash text,
   name varchar(128) NOT NULL DEFAULT '',
   role varchar(20) NOT NULL DEFAULT 'user',
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 );
 
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS email varchar(255);
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS phone varchar(20);
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS password_hash text;
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS name varchar(128);
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS role varchar(20) DEFAULT 'user';
@@ -86,6 +88,7 @@ ALTER TABLE training_records ADD COLUMN IF NOT EXISTS started_at timestamptz DEF
 ALTER TABLE training_records ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
 
 CREATE UNIQUE INDEX IF NOT EXISTS user_profiles_email_uidx ON user_profiles(email);
+CREATE UNIQUE INDEX IF NOT EXISTS user_profiles_phone_uidx ON user_profiles(phone);
 CREATE INDEX IF NOT EXISTS training_records_user_idx ON training_records(user_id);
 CREATE INDEX IF NOT EXISTS passenger_profiles_sort_idx ON passenger_profiles(sort_order);
 `;

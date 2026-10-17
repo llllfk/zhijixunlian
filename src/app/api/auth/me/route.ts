@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
     user: {
       id: ctx.user_id,
       email: ctx.email,
+      phone: ctx.phone,
       name: ctx.name,
       role: ctx.role,
       is_active: ctx.is_active,

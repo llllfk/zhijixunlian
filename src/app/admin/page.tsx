@@ -80,7 +80,7 @@ function UsersTab() {
                   {u.role === 'admin' ? <Badge className="bg-amber-400/20 text-amber-300">管理员</Badge> : <Badge className="bg-slate-500/20 text-slate-300">学员</Badge>}
                   {!u.is_active && <Badge className="bg-red-500/20 text-red-300">已禁用</Badge>}
                 </div>
-                <p className="text-xs text-slate-500">{u.email || '—'}</p>
+                <p className="text-xs text-slate-500">{u.phone || u.email || '—'}</p>
               </div>
             </div>
             <span className="text-xs text-slate-600">{fmtDate(u.created_at)}</span>

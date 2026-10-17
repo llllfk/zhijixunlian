@@ -19,7 +19,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
        role = COALESCE($4, role),
        updated_at = now()
      WHERE id = $1
-     RETURNING id, email, name, role, is_active, created_at`,
+     RETURNING id, email, phone, name, role, is_active, created_at`,
     [
       id,
       typeof body.is_active === 'boolean' ? body.is_active : null,

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Plane, Mail, Lock, Loader2 } from 'lucide-react';
+import { Plane, Phone, Lock, Loader2 } from 'lucide-react';
 import { apiSend, setSessionToken } from '@/lib/client-api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,19 +12,22 @@ import { Label } from '@/components/ui/label';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error('请输入账号与密码');
+    if (!account || !password) {
+      toast.error('请输入手机号与密码');
       return;
     }
     setLoading(true);
     try {
-      const data = await apiSend<{ token: string; user: { role: string } }>('/api/auth/login', 'POST', { email, password });
+      const data = await apiSend<{ token: string; user: { role: string } }>('/api/auth/login', 'POST', {
+        phone: account.trim(),
+        password,
+      });
       setSessionToken(data.token);
       toast.success('登录成功');
       if (data.user?.role === 'admin') {
@@ -41,7 +44,6 @@ export default function LoginPage() {
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-slate-950 px-6">
-      {/* 航空感背景 */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-sky-500/20 blur-3xl" />
         <div className="absolute -right-16 bottom-16 h-80 w-80 rounded-full bg-blue-600/25 blur-3xl" />
@@ -61,17 +63,18 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-4 rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-xl backdrop-blur-md">
           <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-slate-300">
-              账号（邮箱）
+            <Label htmlFor="account" className="text-slate-300">
+              手机号
             </Label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
               <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                id="account"
+                type="tel"
+                inputMode="numeric"
+                value={account}
+                onChange={(e) => setAccount(e.target.value)}
+                placeholder="请输入11位手机号"
                 className="border-white/10 bg-slate-900/60 pl-9 text-white placeholder:text-slate-600"
               />
             </div>

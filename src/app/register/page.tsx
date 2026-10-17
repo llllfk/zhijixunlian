@@ -4,8 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Plane, Mail, Lock, User, Loader2 } from 'lucide-react';
+import { Plane, Phone, Lock, User, Loader2 } from 'lucide-react';
 import { apiSend, setSessionToken } from '@/lib/client-api';
+import { isValidCnMobile, normalizePhone } from '@/lib/phone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,15 +14,20 @@ import { Label } from '@/components/ui/label';
 export default function RegisterPage() {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !email || !password) {
-      toast.error('请填写姓名、账号与密码');
+    const phoneNorm = normalizePhone(phone);
+    if (!name.trim() || !phoneNorm || !password) {
+      toast.error('请填写姓名、手机号与密码');
+      return;
+    }
+    if (!isValidCnMobile(phoneNorm)) {
+      toast.error('请输入正确的11位手机号');
       return;
     }
     if (password.length < 6) {
@@ -36,11 +42,10 @@ export default function RegisterPage() {
     try {
       const data = await apiSend<{ token: string }>('/api/auth/register', 'POST', {
         name: name.trim(),
-        email,
+        phone: phoneNorm,
         password,
       });
       setSessionToken(data.token);
-
       toast.success('注册成功，已自动登录');
       router.push('/');
     } catch (err: any) {
@@ -72,17 +77,32 @@ export default function RegisterPage() {
             </Label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="请输入真实姓名" className="border-white/10 bg-slate-900/60 pl-9 text-white placeholder:text-slate-600" />
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="请输入真实姓名"
+                className="border-white/10 bg-slate-900/60 pl-9 text-white placeholder:text-slate-600"
+              />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-slate-300">
-              账号（邮箱）
+            <Label htmlFor="phone" className="text-slate-300">
+              手机号
             </Label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="border-white/10 bg-slate-900/60 pl-9 text-white placeholder:text-slate-600" />
+              <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <Input
+                id="phone"
+                type="tel"
+                inputMode="numeric"
+                maxLength={11}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                placeholder="请输入11位手机号"
+                className="border-white/10 bg-slate-900/60 pl-9 text-white placeholder:text-slate-600"
+              />
             </div>
           </div>
 
@@ -92,7 +112,14 @@ export default function RegisterPage() {
             </Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="至少 6 位" className="border-white/10 bg-slate-900/60 pl-9 text-white placeholder:text-slate-600" />
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="至少 6 位"
+                className="border-white/10 bg-slate-900/60 pl-9 text-white placeholder:text-slate-600"
+              />
             </div>
           </div>
 
@@ -102,7 +129,14 @@ export default function RegisterPage() {
             </Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <Input id="confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="再次输入密码" className="border-white/10 bg-slate-900/60 pl-9 text-white placeholder:text-slate-600" />
+              <Input
+                id="confirm"
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                placeholder="再次输入密码"
+                className="border-white/10 bg-slate-900/60 pl-9 text-white placeholder:text-slate-600"
+              />
             </div>
           </div>
 

@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   }
   await ensureDb();
   const { rows } = await getPool().query(
-    `SELECT id, email, name, role, is_active, created_at FROM user_profiles ORDER BY created_at DESC`
+    `SELECT id, email, phone, name, role, is_active, created_at FROM user_profiles ORDER BY created_at DESC`
   );
   return NextResponse.json({ users: rows });
 }
