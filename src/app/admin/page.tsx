@@ -342,7 +342,7 @@ function RecordsTab() {
       ))}
 
       <Dialog open={!!view} onOpenChange={(o) => !o && setView(null)}>
-        <DialogContent className="max-h-[80vh] max-w-md overflow-y-auto bg-white text-slate-900">
+        <DialogContent className="max-h-[80vh] max-w-md overflow-x-hidden overflow-y-auto bg-white text-slate-900">
           <DialogHeader>
             <DialogTitle className="text-slate-900">训练结果详情</DialogTitle>
           </DialogHeader>

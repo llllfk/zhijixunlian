@@ -1,5 +1,10 @@
 import { DialogueMsg } from '@/lib/types';
 
+function isControlText(content: string) {
+  const t = content.trim();
+  return t.includes('generate_answer_finish') || t.includes('msg_type') || t.includes('finish_reason');
+}
+
 function fmtTime(ts?: number) {
   if (!ts) return '';
   const d = new Date(ts);
@@ -21,14 +26,16 @@ export function DialogueTranscript({
   /** dark：深色页浅字；light：白底弹窗深字 */
   tone?: 'dark' | 'light';
 }) {
-  const list = Array.isArray(messages) ? messages.filter((m) => m?.content?.trim()) : [];
+  const list = Array.isArray(messages)
+    ? messages.filter((m) => m?.content?.trim() && !isControlText(m.content))
+    : [];
 
   if (!list.length) {
     return <p className={`text-sm ${tone === 'light' ? 'text-slate-600' : 'text-slate-400'} ${className}`}>{emptyText}</p>;
   }
 
   return (
-    <div className={`space-y-2.5 ${className}`}>
+    <div className={`min-w-0 space-y-2.5 overflow-x-hidden ${className}`}>
       {list.map((m, i) => {
         const isStudent = m.role === 'agent';
         const bubble =
@@ -46,7 +53,7 @@ export function DialogueTranscript({
                 <span>{isStudent ? '学员（值机员）' : `${passengerName}（旅客）`}</span>
                 {m.ts ? <span>{fmtTime(m.ts)}</span> : null}
               </div>
-              <p className="whitespace-pre-wrap break-words">{m.content}</p>
+              <p className="whitespace-pre-wrap break-all">{m.content}</p>
             </div>
           </div>
         );

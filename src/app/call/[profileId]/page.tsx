@@ -27,6 +27,13 @@ function isPassengerAnswer(event: unknown, content: string): boolean {
   const type = pickMessageType(event);
   if (type && type !== 'answer') return false;
   if (content.includes('系统提示')) return false;
+  if (
+    content.includes('generate_answer_finish') ||
+    content.includes('msg_type') ||
+    content.includes('finish_reason')
+  ) {
+    return false;
+  }
   const trimmed = content.trim();
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
     try {
@@ -439,11 +446,11 @@ function CallInner() {
               </p>
             </div>
 
-            <div className="mt-1 w-full flex-1 space-y-2 overflow-y-auto pb-2">
+            <div className="mt-1 w-full min-w-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto pb-2">
               {messages.map((m, i) => (
                 <div key={i} className={`flex ${m.role === 'agent' ? 'justify-end' : 'justify-start'}`}>
                   <div
-                    className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm backdrop-blur ${
+                    className={`max-w-[85%] break-all rounded-2xl px-3.5 py-2 text-sm backdrop-blur ${
                       m.role === 'agent' ? 'rounded-br-md bg-emerald-600/80' : 'rounded-bl-md bg-black/50'
                     }`}
                   >
