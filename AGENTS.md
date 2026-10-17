@@ -1,5 +1,28 @@
 # 项目上下文
 
+## 项目定位
+民航旅客地面服务（值机柜台）语音陪练 Web 应用：学员选画像 → 全屏背景 → 拨打电话 → 挂断 → 训练总结（雷达图 + 改进建议）；含管理后台。手机优先。
+
+## 扣子双智能体接入（关键）
+- 配置位集中在 `src/lib/coze.ts`（`COZE_CONFIG`），密钥一律走环境变量，**禁止写死到仓库**：
+  - `COZE_TUTOR_BOT_ID`：陪练通话智能体（通话页 SSE 由 `src/app/api/coze/call/route.ts` 消费，未配置回退 `src/lib/mock.ts` 脚本）
+  - `COZE_EVALUATOR_BOT_ID`：训练评价智能体（挂断后由 `src/lib/evaluator.ts` 调用，未配置回退 `mockEval`）
+  - `COZE_API_BASE_URL` / `COZE_WORKLOAD_API_TOKEN`
+- 前端是否 mock 由 `/api/coze/status` 判断。
+
+## 鉴权与数据
+- 登录走 Supabase email/password；前端把 `access_token` 放 `x-session` 头；服务端用 `src/lib/server-auth.ts` 的 `resolveAuth`/`requireAdmin` 校验（数据操作统一用 service_role，RLS 仅做封锁）。
+- 表：`user_profiles`、`passenger_profiles`、`training_records`（schema 见 `src/storage/database/shared/schema.ts`）。
+- 管理员/dev 演示账号：`admin@coze.dev` / `Admin@123456`（由 `scripts/seed-admin.ts` 创建，仅 DEV）。
+
+## API 路由
+- 学员：`/api/auth/register`、`/api/auth/me`、`/api/profiles`、`/api/trainings`、`/api/trainings/[id]`
+- Coze：`/api/coze/call`（SSE）、`/api/coze/status`
+- 管理：`/api/admin/users`、`/api/admin/users/[id]`、`/api/admin/users/[id]/reset-password`、`/api/admin/profiles`、`/api/admin/profiles/[id]`、`/api/admin/records`、`/api/admin/records/[id]`
+
+## 页面
+`/login` `/register` /（学员首页）`/train`（画像选择）`/call/[profileId]`（通话）`/result/[id]`（总结）`/records`（记录）`/admin`（后台）。
+
 ### 版本技术栈
 
 - **Framework**: Next.js 16 (App Router)

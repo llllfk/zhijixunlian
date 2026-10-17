@@ -135,3 +135,14 @@
 body {
   @apply font-sans;
 }
+
+/* 通话声纹波形动画 */
+@keyframes wave-bounce {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+.animate-wave {
+  animation: wave-bounce 1.1s ease-in-out infinite;
+  transform-origin: bottom;
+  transform: scaleY(0.35);
+}
