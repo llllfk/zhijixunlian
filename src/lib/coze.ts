@@ -215,13 +215,8 @@ export async function* iterateCozePassengerEvents(
 export function buildPassengerKickoff(profileName?: string | null, description?: string | null) {
   const name = profileName || '普通成人';
   const desc = description?.trim() || '配合度高的常规旅客，按标准流程办理值机。';
-  return [
-    `系统提示（学员看不到）：你是机场值机柜台前的旅客，不是老师，不背规范、不打分。`,
-    `本场必须只扮演以下画像，不要切换成其他旅客类型：`,
-    `当前画像：${name}`,
-    `画像说明（严格按此语气与行为）：${desc}`,
-    `通话刚接通。请用一两句口语开场（例如来办值机），一次只说一两句，等值机员回应。`,
-  ].join('\n');
+  // 尽量短：过长文本注入在实时语音里容易导致只播出一声就停
+  return `【指令勿朗读】你是值机柜台旅客「${name}」。${desc} 请用一两句口语开场来办值机，然后停住等值机员说话。`;
 }
 
 export type CozeVoiceItem = {

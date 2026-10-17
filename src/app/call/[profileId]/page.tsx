@@ -10,6 +10,26 @@ import { DialogueMsg, PassengerProfile } from '@/lib/types';
 
 type Stage = 'idle' | 'ringing' | 'connected' | 'saving';
 type CallMode = 'voice' | 'text';
+/** 通话过程状态，给学员看当前智能体/麦克风在干嘛 */
+type CallStatus = 'connecting' | 'thinking' | 'speaking' | 'listening' | 'you_speaking' | 'idle';
+
+function statusLabel(status: CallStatus, profileName?: string | null) {
+  const who = profileName || '旅客';
+  switch (status) {
+    case 'connecting':
+      return '正在连接语音…';
+    case 'thinking':
+      return `${who}正在思考…`;
+    case 'speaking':
+      return `${who}正在说话`;
+    case 'you_speaking':
+      return '正在听你说…';
+    case 'listening':
+      return '请对着麦克风说话';
+    default:
+      return '语音通话中';
+  }
+}
 
 function pickContent(event: unknown): string {
   const e = event as { data?: { content?: string; text?: string }; content?: string };
@@ -66,13 +86,20 @@ function CallInner() {
   const [liveStudent, setLiveStudent] = useState('');
   const [micOn, setMicOn] = useState(true);
   const [speaking, setSpeaking] = useState(false);
+  const [callStatus, setCallStatus] = useState<CallStatus>('idle');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const voiceClientRef = useRef<any>(null);
   const messagesRef = useRef<DialogueMsg[]>([]);
   const passengerBufRef = useRef('');
+  const callStatusRef = useRef<CallStatus>('idle');
   messagesRef.current = messages;
+
+  function setVoiceStatus(next: CallStatus) {
+    callStatusRef.current = next;
+    setCallStatus(next);
+  }
 
   useEffect(() => {
     apiGet<{ profiles: PassengerProfile[] }>('/api/profiles')
@@ -180,13 +207,15 @@ function CallInner() {
       throw new Error('需要麦克风权限，请在浏览器中允许后重试');
     }
 
+    // 先静音上行：否则环境音会立刻打断旅客开场，表现为「响一声就没了」
     const client = new WsChatClient({
       token: cfg.token,
       botId: cfg.botId,
       baseWsURL: cfg.baseWsURL || 'wss://ws.coze.cn',
-      voiceId: cfg.voiceId,
+      voiceId: cfg.voiceId || undefined,
       allowPersonalAccessTokenInBrowser: true,
-      audioMutedDefault: false,
+      audioMutedDefault: true,
+      playbackVolumeDefault: 1,
       audioCaptureConfig: {
         echoCancellation: true,
         noiseSuppression: true,
@@ -194,16 +223,50 @@ function CallInner() {
       },
     });
 
+    let openingDone = false;
+    const openMicAfterOpening = async () => {
+      if (openingDone) return;
+      openingDone = true;
+      try {
+        await client.setAudioEnable(true);
+        setMicOn(true);
+        if (callStatusRef.current === 'thinking' || callStatusRef.current === 'speaking' || callStatusRef.current === 'connecting') {
+          setVoiceStatus('listening');
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
     client.on(WsChatEventNames.ERROR, (_n: string, event: unknown) => {
-      const msg = (event as any)?.data?.msg || (event as any)?.message || '语音连接异常';
+      const msg =
+        (event as any)?.data?.msg ||
+        (event as any)?.data?.message ||
+        (event as any)?.message ||
+        '语音连接异常';
       toast.error(String(msg));
     });
     client.on(WsChatEventNames.SERVER_ERROR, (_n: string, event: unknown) => {
-      toast.error(pickContent(event) || '扣子语音服务报错');
+      const msg =
+        pickContent(event) ||
+        (event as any)?.data?.msg ||
+        (event as any)?.message ||
+        '扣子语音服务报错';
+      toast.error(String(msg));
+    });
+    client.on(WsChatEventNames.CONVERSATION_CHAT_FAILED, (_n: string, event: unknown) => {
+      toast.error(pickContent(event) || (event as any)?.data?.msg || '对话失败');
+      void openMicAfterOpening();
     });
     client.on(WsChatEventNames.CONVERSATION_CHAT_CREATED, (_n: string, event: unknown) => {
       const cid = pickConversationId(event);
       if (cid) setConversationId(cid);
+      setVoiceStatus('thinking');
+    });
+    client.on(WsChatEventNames.CONVERSATION_CHAT_IN_PROGRESS, () => {
+      if (callStatusRef.current !== 'speaking' && callStatusRef.current !== 'you_speaking') {
+        setVoiceStatus('thinking');
+      }
     });
     client.on(WsChatEventNames.CONVERSATION_MESSAGE_DELTA, (_n: string, event: unknown) => {
       const piece = pickContent(event);
@@ -212,6 +275,7 @@ function CallInner() {
       if (cid) setConversationId(cid);
       passengerBufRef.current += piece;
       setLivePassenger(passengerBufRef.current);
+      setVoiceStatus('speaking');
     });
     client.on(WsChatEventNames.CONVERSATION_MESSAGE_COMPLETED, (_n: string, event: unknown) => {
       const fromEvent = pickContent(event);
@@ -228,6 +292,8 @@ function CallInner() {
       // 结束控制包可能盖住正文：缓冲里若已有对白则落盘
       if (fromBuf.trim()) pushMsg('passenger', fromBuf.trim());
     });
+    client.on(WsChatEventNames.AUDIO_SENTENCE_PLAYBACK_START, () => setVoiceStatus('speaking'));
+    client.on(WsChatEventNames.CONVERSATION_AUDIO_DELTA, () => setVoiceStatus('speaking'));
     client.on(WsChatEventNames.CONVERSATION_AUDIO_TRANSCRIPT_UPDATE, (_n: string, event: unknown) => {
       setLiveStudent(pickContent(event));
     });
@@ -236,25 +302,49 @@ function CallInner() {
       setLiveStudent('');
       pushMsg('agent', text);
     });
-    client.on(WsChatEventNames.INPUT_AUDIO_BUFFER_SPEECH_STARTED, () => setSpeaking(true));
-    client.on(WsChatEventNames.INPUT_AUDIO_BUFFER_SPEECH_STOPPED, () => setSpeaking(false));
+    client.on(WsChatEventNames.INPUT_AUDIO_BUFFER_SPEECH_STARTED, () => {
+      setSpeaking(true);
+      setVoiceStatus('you_speaking');
+    });
+    client.on(WsChatEventNames.INPUT_AUDIO_BUFFER_SPEECH_STOPPED, () => {
+      setSpeaking(false);
+      setVoiceStatus('thinking');
+    });
+    // 整段开场播完后再开麦，避免环境音抢话导致「只响一声」
+    client.on(WsChatEventNames.CONVERSATION_AUDIO_COMPLETED, () => {
+      void openMicAfterOpening();
+      setVoiceStatus('listening');
+    });
+    client.on(WsChatEventNames.CONVERSATION_CHAT_COMPLETED, () => {
+      void openMicAfterOpening();
+      setVoiceStatus('listening');
+    });
 
+    setVoiceStatus('connecting');
     await client.connect();
     voiceClientRef.current = client;
     setMode('voice');
-    setMicOn(true);
+    setMicOn(false);
     setStage('connected');
+    setVoiceStatus('thinking');
 
-    // 接通后用文本注入画像开场，旅客用语音回复
+    // 接通后注入画像并开场；超时仍开麦，避免一直静音
     if (cfg.kickoff) {
       setTimeout(() => {
         try {
+          setVoiceStatus('thinking');
           client.sendTextMessage(cfg.kickoff);
-        } catch {
-          /* ignore */
+        } catch (e: any) {
+          toast.error(e?.message || '开场发送失败');
+          void openMicAfterOpening();
         }
-      }, 400);
+      }, 600);
+    } else {
+      void openMicAfterOpening();
     }
+    setTimeout(() => {
+      void openMicAfterOpening();
+    }, 12000);
   }
 
   async function startTextCall() {
@@ -282,17 +372,20 @@ function CallInner() {
     setLivePassenger('');
     setLiveStudent('');
     passengerBufRef.current = '';
+    setVoiceStatus('connecting');
     try {
       await startVoiceCall();
     } catch (voiceErr: any) {
       console.warn('voice fallback to text', voiceErr);
       toast.message(voiceErr?.message || '语音暂不可用，已切文字对话');
+      setVoiceStatus('idle');
       try {
         await startTextCall();
       } catch (e: any) {
         if (e?.name === 'AbortError') return;
         toast.error(e?.message || '通话连接失败');
         setStage('idle');
+        setVoiceStatus('idle');
       }
     }
   }
@@ -305,6 +398,7 @@ function CallInner() {
     pushMsg('agent', text);
     try {
       if (mode === 'voice' && voiceClientRef.current) {
+        setVoiceStatus('thinking');
         voiceClientRef.current.sendTextMessage(text);
         return;
       }
@@ -347,6 +441,7 @@ function CallInner() {
     abortRef.current?.abort();
     if (timerRef.current) clearInterval(timerRef.current);
     setStage('saving');
+    setVoiceStatus('idle');
     try {
       await voiceClientRef.current?.disconnect?.();
     } catch {
@@ -440,11 +535,28 @@ function CallInner() {
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold tabular-nums">{fmt(duration)}</div>
-              <p className="mt-1 flex items-center justify-center gap-1.5 text-sm text-emerald-300">
+              <p className="mt-1 flex items-center justify-center gap-1.5 text-sm text-emerald-300/90">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
                 {mode === 'voice' ? '语音通话中' : '文字通话中'}
-                {speaking ? ' · 正在听你说' : ''}
               </p>
+              {mode === 'voice' && (
+                <p
+                  className={`mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium backdrop-blur ${
+                    callStatus === 'speaking'
+                      ? 'bg-sky-500/25 text-sky-100'
+                      : callStatus === 'thinking' || callStatus === 'connecting'
+                        ? 'bg-amber-500/25 text-amber-100'
+                        : callStatus === 'you_speaking'
+                          ? 'bg-emerald-500/25 text-emerald-100'
+                          : 'bg-white/10 text-slate-100'
+                  }`}
+                >
+                  {(callStatus === 'thinking' || callStatus === 'connecting') && (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  )}
+                  {statusLabel(callStatus, profile?.name)}
+                </p>
+              )}
             </div>
 
             <div className="mt-1 w-full min-w-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto pb-2">
@@ -478,8 +590,11 @@ function CallInner() {
                   </div>
                 </div>
               )}
-              {messages.length === 0 && !livePassenger && (
-                <p className="mt-3 text-center text-xs text-slate-300/70">请对着麦克风说话，或下方打字辅助</p>
+              {messages.length === 0 && !livePassenger && mode === 'voice' && callStatus === 'listening' && (
+                <p className="mt-3 text-center text-xs text-slate-300/70">轮到你了，请对着麦克风说话，或下方打字辅助</p>
+              )}
+              {messages.length === 0 && !livePassenger && mode === 'voice' && (callStatus === 'thinking' || callStatus === 'speaking') && (
+                <p className="mt-3 text-center text-xs text-slate-300/70">请稍等，旅客正在回应…</p>
               )}
             </div>
           </div>

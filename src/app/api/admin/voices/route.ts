@@ -13,16 +13,10 @@ export async function GET(req: NextRequest) {
   try {
     const voices = await listCozeVoices();
     return NextResponse.json({ voices, source: 'live' as const });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : '拉取音色失败';
-    const needPerm = /403|listVoice|权限|Forbidden/i.test(msg);
-    const hint = needPerm
-      ? '音色接口无权限（需 listVoice）。已改用内置中文音色列表；请到扣子开放平台为 PAT 开通 listVoice，试听预览会更完整。'
-      : `${msg}。已改用内置中文音色列表。`;
+  } catch {
     return NextResponse.json({
       voices: FALLBACK_VOICES,
       source: 'fallback' as const,
-      warning: hint,
     });
   }
 }

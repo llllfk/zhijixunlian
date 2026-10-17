@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Pause, Play, Volume2 } from 'lucide-react';
-import { apiGet, getSessionToken } from '@/lib/client-api';
+import { apiGet } from '@/lib/client-api';
 import { VoiceOption } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -13,82 +13,60 @@ type Props = {
   onChange: (voiceId: string) => void;
 };
 
+const PREVIEW_TIP = '暂不可试听，选择保存后会直接生效';
+
 export function VoicePicker({ value, onChange }: Props) {
   const [voices, setVoices] = useState<VoiceOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [previewingId, setPreviewingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const objectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    apiGet<{ voices: VoiceOption[]; warning?: string; source?: string }>('/api/admin/voices')
-      .then((d) => {
-        setVoices(d.voices ?? []);
-        if (d.warning) toast.message(d.warning);
-      })
-      .catch((e) => toast.error(e?.message || '加载音色失败'))
+    apiGet<{ voices: VoiceOption[] }>('/api/admin/voices')
+      .then((d) => setVoices(d.voices ?? []))
+      .catch(() => setVoices([]))
       .finally(() => setLoading(false));
     return () => {
-      stopPlay();
+      audioRef.current?.pause();
+      audioRef.current = null;
     };
   }, []);
 
   function stopPlay() {
     audioRef.current?.pause();
     audioRef.current = null;
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
     setPlayingId(null);
-    setPreviewingId(null);
   }
 
-  async function preview(v: VoiceOption) {
-    if (playingId === v.id || previewingId === v.id) {
+  function preview(v: VoiceOption) {
+    if (playingId === v.id) {
       stopPlay();
       return;
     }
-    stopPlay();
-    setPreviewingId(v.id);
-    try {
-      let url = v.previewUrl || '';
-      if (!url) {
-        const token = await getSessionToken();
-        const res = await fetch(`/api/admin/voices/preview?voiceId=${encodeURIComponent(v.id)}`, {
-          headers: token ? { 'x-session': token } : {},
-        });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          throw new Error(j?.error || '试听失败');
-        }
-        const blob = await res.blob();
-        url = URL.createObjectURL(blob);
-        objectUrlRef.current = url;
-      }
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      setPlayingId(v.id);
-      audio.onended = () => stopPlay();
-      audio.onerror = () => {
-        stopPlay();
-        toast.error('试听播放失败');
-      };
-      await audio.play();
-    } catch (e: any) {
-      stopPlay();
-      toast.error(e?.message || '试听失败');
-    } finally {
-      setPreviewingId((cur) => (cur === v.id ? null : cur));
+    if (!v.previewUrl) {
+      toast.message(PREVIEW_TIP);
+      return;
     }
+    stopPlay();
+    const audio = new Audio(v.previewUrl);
+    audioRef.current = audio;
+    setPlayingId(v.id);
+    audio.onended = () => setPlayingId(null);
+    audio.onerror = () => {
+      setPlayingId(null);
+      toast.message(PREVIEW_TIP);
+    };
+    void audio.play().catch(() => {
+      setPlayingId(null);
+      toast.message(PREVIEW_TIP);
+    });
   }
 
   if (loading) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
         <Loader2 className="h-4 w-4 animate-spin" />
-        正在加载可试听音色…
+        正在加载音色…
       </div>
     );
   }
@@ -96,7 +74,7 @@ export function VoicePicker({ value, onChange }: Props) {
   return (
     <div className="space-y-2">
       <Label className="text-slate-800">旅客音色</Label>
-      <p className="text-xs text-slate-500">点选名称选用，旁侧可试听；界面不展示音色编号。</p>
+      <p className="text-xs text-slate-500">点选名称选用；界面不展示音色编号。</p>
       <div className="max-h-52 space-y-1.5 overflow-y-auto overflow-x-hidden rounded-xl border border-slate-200 bg-slate-50 p-2">
         <button
           type="button"
@@ -113,7 +91,6 @@ export function VoicePicker({ value, onChange }: Props) {
         </button>
         {voices.map((v) => {
           const selected = value === v.id;
-          const busy = previewingId === v.id;
           return (
             <div
               key={v.id}
@@ -140,21 +117,13 @@ export function VoicePicker({ value, onChange }: Props) {
                 onClick={() => preview(v)}
                 title="试听"
               >
-                {busy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : playingId === v.id ? (
-                  <Pause className="h-4 w-4" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
+                {playingId === v.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               </Button>
             </div>
           );
         })}
         {!voices.length && (
-          <p className="px-2 py-3 text-center text-xs text-slate-500">
-            暂无可用音色。请检查 ZJ_API_TOKEN，并为 PAT 开通 listVoice 权限。
-          </p>
+          <p className="px-2 py-3 text-center text-xs text-slate-500">暂无可用音色</p>
         )}
       </div>
     </div>
