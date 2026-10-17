@@ -221,3 +221,45 @@ export function buildPassengerKickoff(profileName?: string | null, description?:
     `通话刚接通。请用一两句口语开场（例如来办值机），一次只说一两句，等值机员回应。`,
   ].join('\n');
 }
+
+export type CozeVoiceItem = {
+  id: string;
+  name: string;
+  language: string;
+  previewUrl: string | null;
+  isSystem: boolean;
+};
+
+/** 拉取扣子可用音色（含试听地址），供管理端选型 */
+export async function listCozeVoices(): Promise<CozeVoiceItem[]> {
+  if (!COZE_CONFIG.token) throw new Error('未配置 API Token');
+  const out: CozeVoiceItem[] = [];
+  let page = 1;
+  let hasMore = true;
+  while (hasMore && page <= 5) {
+    const url = new URL(`${COZE_CONFIG.apiBaseUrl}/v1/audio/voices`);
+    url.searchParams.set('page_num', String(page));
+    url.searchParams.set('page_size', '100');
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${COZE_CONFIG.token}` },
+    });
+    if (!res.ok) throw new Error(`音色列表请求失败: ${res.status}`);
+    const json = await res.json();
+    if (json?.code !== 0) throw new Error(json?.msg || '音色列表返回异常');
+    const list = Array.isArray(json?.data?.voice_list) ? json.data.voice_list : [];
+    for (const v of list) {
+      const id = String(v.voice_id || '');
+      if (!id) continue;
+      out.push({
+        id,
+        name: String(v.name || '未命名音色'),
+        language: String(v.language_name || v.language_code || ''),
+        previewUrl: v.preview_audio ? String(v.preview_audio) : null,
+        isSystem: Boolean(v.is_system_voice),
+      });
+    }
+    hasMore = Boolean(json?.data?.has_more);
+    page += 1;
+  }
+  return out;
+}

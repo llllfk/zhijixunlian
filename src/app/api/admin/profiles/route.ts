@@ -24,15 +24,20 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const name = String(body.name || '').trim();
   if (!name) return NextResponse.json({ error: '请填写画像名称' }, { status: 400 });
+  const voiceId =
+    body.voice_id === null || body.voice_id === undefined || body.voice_id === ''
+      ? null
+      : String(body.voice_id);
   await ensureDb();
   const { rows } = await getPool().query(
-    `INSERT INTO passenger_profiles (id, name, description, background_url, is_active, sort_order)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    `INSERT INTO passenger_profiles (id, name, description, background_url, voice_id, is_active, sort_order)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
     [
       crypto.randomUUID(),
       name,
       body.description || null,
       body.background_url || null,
+      voiceId,
       body.is_active !== false,
       Number(body.sort_order) || 0,
     ]

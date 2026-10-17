@@ -12,13 +12,19 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params;
   const body = await req.json().catch(() => ({}));
   await ensureDb();
+  const voiceProvided = 'voice_id' in body;
+  const voiceId =
+    body.voice_id === null || body.voice_id === undefined || body.voice_id === ''
+      ? null
+      : String(body.voice_id);
   const { rows } = await getPool().query(
     `UPDATE passenger_profiles SET
        name = COALESCE($2, name),
        description = CASE WHEN $3::boolean THEN $4 ELSE description END,
        background_url = CASE WHEN $5::boolean THEN $6 ELSE background_url END,
-       is_active = COALESCE($7, is_active),
-       sort_order = COALESCE($8, sort_order),
+       voice_id = CASE WHEN $7::boolean THEN $8 ELSE voice_id END,
+       is_active = COALESCE($9, is_active),
+       sort_order = COALESCE($10, sort_order),
        updated_at = now()
      WHERE id = $1 RETURNING *`,
     [
@@ -28,6 +34,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       body.description ?? null,
       'background_url' in body,
       body.background_url ?? null,
+      voiceProvided,
+      voiceId,
       typeof body.is_active === 'boolean' ? body.is_active : null,
       'sort_order' in body ? Number(body.sort_order) : null,
     ]

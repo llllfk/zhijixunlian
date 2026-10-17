@@ -34,6 +34,7 @@ export const passengerProfiles = pgTable(
 		name: varchar("name", { length: 100 }).notNull(),
 		description: text("description"),
 		background_url: text("background_url"),
+		voice_id: varchar("voice_id", { length: 64 }),
 		is_active: boolean("is_active").notNull().default(true),
 		sort_order: integer("sort_order").notNull().default(0),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

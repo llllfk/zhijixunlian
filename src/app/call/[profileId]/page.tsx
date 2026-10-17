@@ -162,6 +162,7 @@ function CallInner() {
   async function startVoiceCall() {
     const token = await getSessionToken();
     const qs = new URLSearchParams({
+      profileId: profile?.id || profileId || '',
       profileName: profile?.name || '',
       description: profile?.description || '',
     });

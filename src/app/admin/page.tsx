@@ -6,7 +6,7 @@ import { ArrowLeft, Plus, Pencil, Trash2, KeyRound, Loader2 } from 'lucide-react
 import { AuthProvider } from '@/components/auth';
 import { apiGet, apiSend } from '@/lib/client-api';
 import { toast } from 'sonner';
-import { UserProfileInfo, PassengerProfile, TrainingRecord, RADAR_DIMENSIONS } from '@/lib/types';
+import { UserProfileInfo, PassengerProfile, TrainingRecord, RADAR_DIMENSIONS, VoiceOption } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DialogueTranscript } from '@/components/dialogue-transcript';
+import { VoicePicker } from '@/components/voice-picker';
 
 function scoreTone(v: number) {
   if (v >= 85) return { text: 'text-emerald-300', bar: 'bg-emerald-400' };
@@ -137,6 +138,7 @@ interface ProfileDraft {
   name: string;
   description: string;
   background_url: string;
+  voice_id: string;
   is_active: boolean;
   sort_order: number;
 }
@@ -144,17 +146,35 @@ interface ProfileDraft {
 function ProfilesTab() {
   const [profiles, setProfiles] = useState<PassengerProfile[]>([]);
   const [draft, setDraft] = useState<ProfileDraft | null>(null);
+  const [voiceNames, setVoiceNames] = useState<Record<string, string>>({});
 
   const load = useCallback(() => {
     apiGet<{ profiles: PassengerProfile[] }>('/api/admin/profiles').then((d) => setProfiles(d.profiles ?? [])).catch((e) => toast.error(e?.message));
   }, []);
   useEffect(load, [load]);
+  useEffect(() => {
+    apiGet<{ voices: VoiceOption[] }>('/api/admin/voices')
+      .then((d) => {
+        const map: Record<string, string> = {};
+        for (const v of d.voices ?? []) map[v.id] = v.name;
+        setVoiceNames(map);
+      })
+      .catch(() => undefined);
+  }, []);
 
   function openCreate() {
-    setDraft({ name: '', description: '', background_url: '', is_active: true, sort_order: profiles.length + 1 });
+    setDraft({ name: '', description: '', background_url: '', voice_id: '', is_active: true, sort_order: profiles.length + 1 });
   }
   function openEdit(p: PassengerProfile) {
-    setDraft({ id: p.id, name: p.name, description: p.description || '', background_url: p.background_url || '', is_active: p.is_active, sort_order: p.sort_order });
+    setDraft({
+      id: p.id,
+      name: p.name,
+      description: p.description || '',
+      background_url: p.background_url || '',
+      voice_id: p.voice_id || '',
+      is_active: p.is_active,
+      sort_order: p.sort_order,
+    });
   }
 
   async function save() {
@@ -220,7 +240,11 @@ function ProfilesTab() {
               {!p.is_active && <Badge className="bg-red-500/20 text-red-300">停用</Badge>}
             </div>
             <p className="truncate text-xs text-slate-300">{p.description}</p>
-            <p className="text-[11px] text-slate-400">排序 {p.sort_order}</p>
+            <p className="text-[11px] text-slate-400">
+              排序 {p.sort_order}
+              {' · '}
+              音色 {p.voice_id ? voiceNames[p.voice_id] || '已选定' : '默认'}
+            </p>
           </div>
           <div className="flex flex-col items-center gap-2">
             <Switch checked={p.is_active} onCheckedChange={() => toggle(p)} />
@@ -237,31 +261,37 @@ function ProfilesTab() {
       ))}
 
       <Dialog open={!!draft} onOpenChange={(o) => !o && setDraft(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[86vh] max-w-md overflow-y-auto overflow-x-hidden bg-white text-slate-900">
           <DialogHeader>
-            <DialogTitle>{draft?.id ? '编辑画像' : '新增画像'}</DialogTitle>
+            <DialogTitle className="text-slate-900">{draft?.id ? '编辑画像' : '新增画像'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label>名称 *</Label>
+              <Label className="text-slate-800">名称 *</Label>
               <Input value={draft?.name || ''} onChange={(e) => setDraft((d) => (d ? { ...d, name: e.target.value } : d))} placeholder="如：老年旅客" />
             </div>
             <div className="space-y-1">
-              <Label>描述</Label>
+              <Label className="text-slate-800">描述</Label>
               <Textarea value={draft?.description || ''} onChange={(e) => setDraft((d) => (d ? { ...d, description: e.target.value } : d))} placeholder="一句话介绍该旅客特征与训练要点" />
             </div>
             <div className="space-y-1">
-              <Label>背景图 URL</Label>
+              <Label className="text-slate-800">背景图 URL</Label>
               <Input value={draft?.background_url || ''} onChange={(e) => setDraft((d) => (d ? { ...d, background_url: e.target.value } : d))} placeholder="/passengers/xxx.jpg 或 https://…" />
             </div>
+            {draft && (
+              <VoicePicker
+                value={draft.voice_id}
+                onChange={(voice_id) => setDraft((d) => (d ? { ...d, voice_id } : d))}
+              />
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>排序</Label>
+                <Label className="text-slate-800">排序</Label>
                 <Input type="number" value={draft?.sort_order || 0} onChange={(e) => setDraft((d) => (d ? { ...d, sort_order: Number(e.target.value) } : d))} />
               </div>
               <div className="flex items-end gap-2 pb-1">
                 <Switch checked={draft?.is_active ?? true} onCheckedChange={(v) => setDraft((d) => (d ? { ...d, is_active: v } : d))} />
-                <span className="text-xs text-slate-400">启用</span>
+                <span className="text-xs text-slate-600">启用</span>
               </div>
             </div>
           </div>

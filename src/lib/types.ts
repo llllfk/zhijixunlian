@@ -31,9 +31,19 @@ export interface PassengerProfile {
   name: string;
   description: string | null;
   background_url: string | null;
+  /** 扣子音色 ID，仅存库；管理端用名称+试听选择，不向学员展示 */
+  voice_id?: string | null;
   is_active: boolean;
   sort_order: number;
   created_at?: string;
+}
+
+export interface VoiceOption {
+  id: string;
+  name: string;
+  language: string;
+  previewUrl: string | null;
+  isSystem: boolean;
 }
 
 export interface TrainingRecord {

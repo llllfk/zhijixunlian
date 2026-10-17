@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS passenger_profiles (
 
 ALTER TABLE passenger_profiles ADD COLUMN IF NOT EXISTS description text;
 ALTER TABLE passenger_profiles ADD COLUMN IF NOT EXISTS background_url text;
+ALTER TABLE passenger_profiles ADD COLUMN IF NOT EXISTS voice_id varchar(64);
 ALTER TABLE passenger_profiles ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
 ALTER TABLE passenger_profiles ADD COLUMN IF NOT EXISTS sort_order integer DEFAULT 0;
 ALTER TABLE passenger_profiles ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
