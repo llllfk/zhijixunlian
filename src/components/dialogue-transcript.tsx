@@ -12,31 +12,36 @@ export function DialogueTranscript({
   passengerName = '旅客',
   emptyText = '暂无对话记录',
   className = '',
+  tone = 'dark',
 }: {
   messages?: DialogueMsg[] | null;
   passengerName?: string;
   emptyText?: string;
   className?: string;
+  /** dark：深色页浅字；light：白底弹窗深字 */
+  tone?: 'dark' | 'light';
 }) {
   const list = Array.isArray(messages) ? messages.filter((m) => m?.content?.trim()) : [];
 
   if (!list.length) {
-    return <p className={`text-sm text-slate-400 ${className}`}>{emptyText}</p>;
+    return <p className={`text-sm ${tone === 'light' ? 'text-slate-600' : 'text-slate-400'} ${className}`}>{emptyText}</p>;
   }
 
   return (
     <div className={`space-y-2.5 ${className}`}>
       {list.map((m, i) => {
         const isStudent = m.role === 'agent';
+        const bubble =
+          tone === 'light'
+            ? isStudent
+              ? 'rounded-br-md bg-emerald-100 text-emerald-950'
+              : 'rounded-bl-md bg-slate-100 text-slate-900'
+            : isStudent
+              ? 'rounded-br-md bg-emerald-500/20 text-emerald-50'
+              : 'rounded-bl-md bg-white/10 text-slate-100';
         return (
           <div key={`${m.ts || i}-${i}`} className={`flex ${isStudent ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-                isStudent
-                  ? 'rounded-br-md bg-emerald-500/20 text-emerald-50'
-                  : 'rounded-bl-md bg-white/10 text-slate-100'
-              }`}
-            >
+            <div className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${bubble}`}>
               <div className="mb-0.5 flex items-center gap-2 text-[11px] opacity-70">
                 <span>{isStudent ? '学员（值机员）' : `${passengerName}（旅客）`}</span>
                 {m.ts ? <span>{fmtTime(m.ts)}</span> : null}

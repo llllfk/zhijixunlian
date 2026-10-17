@@ -342,38 +342,39 @@ function RecordsTab() {
       ))}
 
       <Dialog open={!!view} onOpenChange={(o) => !o && setView(null)}>
-        <DialogContent className="max-h-[80vh] max-w-md overflow-y-auto">
+        <DialogContent className="max-h-[80vh] max-w-md overflow-y-auto bg-white text-slate-900">
           <DialogHeader>
-            <DialogTitle>训练结果详情</DialogTitle>
+            <DialogTitle className="text-slate-900">训练结果详情</DialogTitle>
           </DialogHeader>
           {view?.result && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-xl bg-white/[0.05] p-3">
-                <span className="text-sm text-slate-400">综合得分</span>
-                <span className="text-2xl font-bold">{view.score ?? view.result.total_score}</span>
+            <div className="space-y-4 text-slate-900">
+              <div className="flex items-center justify-between rounded-xl bg-slate-100 p-3">
+                <span className="text-sm text-slate-700">综合得分</span>
+                <span className="text-2xl font-bold text-slate-900">{view.score ?? view.result.total_score}</span>
               </div>
               <div>
-                <p className="mb-2 text-sm font-semibold">能力维度</p>
+                <p className="mb-2 text-sm font-semibold text-slate-900">能力维度</p>
                 <div className="space-y-1.5">
                   {RADAR_DIMENSIONS.map((k) => (
                     <div key={k} className="flex items-center justify-between text-sm">
-                      <span className="text-slate-400">{k}</span>
-                      <span className="font-semibold">{(view.result?.dimensions as any)?.[k] ?? 0}</span>
+                      <span className="text-slate-700">{k}</span>
+                      <span className="font-semibold text-slate-900">{(view.result?.dimensions as any)?.[k] ?? 0}</span>
                     </div>
                   ))}
                 </div>
               </div>
               <div>
-                <p className="mb-1.5 text-sm font-semibold">改进建议</p>
+                <p className="mb-1.5 text-sm font-semibold text-slate-900">改进建议</p>
                 <ul className="space-y-1.5">
                   {(view.result.suggestions || []).map((s, i) => (
-                    <li key={i} className="text-xs leading-relaxed text-slate-300">· {s}</li>
+                    <li key={i} className="text-sm leading-relaxed text-slate-800">· {s}</li>
                   ))}
                 </ul>
               </div>
               <div>
-                <p className="mb-2 text-sm font-semibold">对话记录</p>
+                <p className="mb-2 text-sm font-semibold text-slate-900">对话记录</p>
                 <DialogueTranscript
+                  tone="light"
                   messages={view.result.transcript}
                   passengerName={view.profile_name || '旅客'}
                 />
