@@ -133,13 +133,17 @@ export async function ensureDb(): Promise<void> {
       await p.query(DDL);
 
       const adminEmail = process.env.ADMIN_EMAIL || 'admin@coze.dev';
-      const adminPassword = process.env.ADMIN_INIT_PASSWORD || 'Admin@123456';
-      const existingAdmin = await p.query(`SELECT id FROM user_profiles WHERE email = $1 LIMIT 1`, [adminEmail]);
+      const adminPhone = process.env.ADMIN_PHONE || '13699225251';
+      const adminPassword = process.env.ADMIN_INIT_PASSWORD || 'Admin123456';
+      const existingAdmin = await p.query(
+        `SELECT id FROM user_profiles WHERE email = $1 OR phone = $2 LIMIT 1`,
+        [adminEmail, adminPhone]
+      );
       if ((existingAdmin.rowCount || 0) === 0) {
         await p.query(
-          `INSERT INTO user_profiles (id, email, password_hash, name, role, is_active)
-           VALUES ($1,$2,$3,'管理员','admin',true)`,
-          [crypto.randomUUID(), adminEmail, hashPassword(adminPassword)]
+          `INSERT INTO user_profiles (id, email, phone, password_hash, name, role, is_active)
+           VALUES ($1,$2,$3,$4,'管理员','admin',true)`,
+          [crypto.randomUUID(), adminEmail, adminPhone, hashPassword(adminPassword)]
         );
       }
 

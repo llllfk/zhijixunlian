@@ -101,9 +101,9 @@ async function cozePassengerStream(opts: {
     },
     cancel() {
       try {
-        cozeRes.body?.cancel();
+        void cozeRes.body?.cancel?.();
       } catch {
-        /* ignore */
+        /* stream may already be locked/closed */
       }
     },
   });

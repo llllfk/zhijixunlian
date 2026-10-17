@@ -2,29 +2,46 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Phone, PhoneOff, Mic, Loader2, Send } from 'lucide-react';
+import { ArrowLeft, Phone, PhoneOff, Mic, MicOff, Loader2, Send } from 'lucide-react';
 import { AuthProvider } from '@/components/auth';
 import { apiGet, apiSend, getSessionToken } from '@/lib/client-api';
 import { toast } from 'sonner';
 import { DialogueMsg, PassengerProfile } from '@/lib/types';
 
 type Stage = 'idle' | 'ringing' | 'connected' | 'saving';
+type CallMode = 'voice' | 'text';
+
+function pickContent(event: unknown): string {
+  const e = event as { data?: { content?: string; text?: string }; content?: string };
+  return String(e?.data?.content || e?.data?.text || e?.content || '').trim();
+}
+
+function pickConversationId(event: unknown): string | null {
+  const e = event as { data?: { conversation_id?: string }; conversation_id?: string };
+  return e?.data?.conversation_id || e?.conversation_id || null;
+}
 
 function CallInner() {
   const { profileId } = useParams<{ profileId: string }>();
   const router = useRouter();
   const [profile, setProfile] = useState<PassengerProfile | null>(null);
   const [stage, setStage] = useState<Stage>('idle');
+  const [mode, setMode] = useState<CallMode>('text');
   const [duration, setDuration] = useState(0);
   const [messages, setMessages] = useState<DialogueMsg[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [livePassenger, setLivePassenger] = useState('');
+  const [liveStudent, setLiveStudent] = useState('');
+  const [micOn, setMicOn] = useState(true);
+  const [speaking, setSpeaking] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const voiceClientRef = useRef<any>(null);
   const messagesRef = useRef<DialogueMsg[]>([]);
+  const passengerBufRef = useRef('');
   messagesRef.current = messages;
 
   useEffect(() => {
@@ -48,10 +65,17 @@ function CallInner() {
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
+      void voiceClientRef.current?.disconnect?.().catch(() => undefined);
+      voiceClientRef.current = null;
     };
   }, []);
 
-  async function consumeSse(res: Response, opts?: { appendAgent?: boolean }) {
+  function pushMsg(role: DialogueMsg['role'], content: string) {
+    if (!content.trim()) return;
+    setMessages((prev) => [...prev, { role, content: content.trim(), ts: Date.now() }]);
+  }
+
+  async function consumeSse(res: Response) {
     if (!res.ok || !res.body) {
       let msg = '通话连接失败';
       try {
@@ -84,9 +108,7 @@ function CallInner() {
         } catch {
           continue;
         }
-        if (obj?.type === 'meta' && obj.conversationId) {
-          setConversationId(String(obj.conversationId));
-        }
+        if (obj?.type === 'meta' && obj.conversationId) setConversationId(String(obj.conversationId));
         if (obj?.type === 'passenger_delta' && typeof obj.content === 'string') {
           deltaAcc += obj.content;
           setLivePassenger(deltaAcc);
@@ -95,25 +117,124 @@ function CallInner() {
           gotPassenger = true;
           deltaAcc = '';
           setLivePassenger('');
-          setMessages((prev) => [
-            ...prev,
-            { role: 'passenger', content: obj.content, ts: Number(obj.ts) || Date.now() },
-          ]);
+          pushMsg('passenger', obj.content);
         }
-        if (obj?.type === 'error') {
-          toast.error(obj.message || '对话出错');
-        }
+        if (obj?.type === 'error') toast.error(obj.message || '对话出错');
       }
     }
 
     if (!gotPassenger && deltaAcc.trim()) {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'passenger', content: deltaAcc.trim(), ts: Date.now() },
-      ]);
+      pushMsg('passenger', deltaAcc.trim());
       setLivePassenger('');
     }
-    return gotPassenger;
+  }
+
+  async function startVoiceCall() {
+    const token = await getSessionToken();
+    const qs = new URLSearchParams({
+      profileName: profile?.name || '',
+      description: profile?.description || '',
+    });
+    const cfgRes = await fetch(`/api/coze/voice-config?${qs}`, {
+      headers: token ? { 'x-session': token } : {},
+    });
+    const cfg = await cfgRes.json();
+    if (!cfgRes.ok || !cfg.enabled) {
+      throw new Error(cfg.error || '语音未启用');
+    }
+
+    const { WsChatClient, WsChatEventNames, WsToolsUtils } = await import('@coze/api/ws-tools');
+    const permission = await WsToolsUtils.checkDevicePermission();
+    if (!permission.audio) {
+      throw new Error('需要麦克风权限，请在浏览器中允许后重试');
+    }
+
+    const client = new WsChatClient({
+      token: cfg.token,
+      botId: cfg.botId,
+      baseWsURL: cfg.baseWsURL || 'wss://ws.coze.cn',
+      voiceId: cfg.voiceId,
+      allowPersonalAccessTokenInBrowser: true,
+      audioMutedDefault: false,
+      audioCaptureConfig: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+
+    client.on(WsChatEventNames.ERROR, (_n: string, event: unknown) => {
+      const msg = (event as any)?.data?.msg || (event as any)?.message || '语音连接异常';
+      toast.error(String(msg));
+    });
+    client.on(WsChatEventNames.SERVER_ERROR, (_n: string, event: unknown) => {
+      toast.error(pickContent(event) || '扣子语音服务报错');
+    });
+    client.on(WsChatEventNames.CONVERSATION_CHAT_CREATED, (_n: string, event: unknown) => {
+      const cid = pickConversationId(event);
+      if (cid) setConversationId(cid);
+    });
+    client.on(WsChatEventNames.CONVERSATION_MESSAGE_DELTA, (_n: string, event: unknown) => {
+      const piece = pickContent(event);
+      if (!piece) return;
+      const cid = pickConversationId(event);
+      if (cid) setConversationId(cid);
+      passengerBufRef.current += piece;
+      setLivePassenger(passengerBufRef.current);
+    });
+    client.on(WsChatEventNames.CONVERSATION_MESSAGE_COMPLETED, (_n: string, event: unknown) => {
+      const full = pickContent(event) || passengerBufRef.current;
+      passengerBufRef.current = '';
+      setLivePassenger('');
+      const role = (event as any)?.data?.role;
+      // 开场用文本注入画像，不记入学员发言
+      if (role === 'user' || full.includes('系统提示')) return;
+      pushMsg('passenger', full);
+    });
+    client.on(WsChatEventNames.CONVERSATION_AUDIO_TRANSCRIPT_UPDATE, (_n: string, event: unknown) => {
+      setLiveStudent(pickContent(event));
+    });
+    client.on(WsChatEventNames.CONVERSATION_AUDIO_TRANSCRIPT_COMPLETED, (_n: string, event: unknown) => {
+      const text = pickContent(event);
+      setLiveStudent('');
+      pushMsg('agent', text);
+    });
+    client.on(WsChatEventNames.INPUT_AUDIO_BUFFER_SPEECH_STARTED, () => setSpeaking(true));
+    client.on(WsChatEventNames.INPUT_AUDIO_BUFFER_SPEECH_STOPPED, () => setSpeaking(false));
+
+    await client.connect();
+    voiceClientRef.current = client;
+    setMode('voice');
+    setMicOn(true);
+    setStage('connected');
+
+    // 接通后用文本注入画像开场，旅客用语音回复
+    if (cfg.kickoff) {
+      setTimeout(() => {
+        try {
+          client.sendTextMessage(cfg.kickoff);
+        } catch {
+          /* ignore */
+        }
+      }, 400);
+    }
+  }
+
+  async function startTextCall() {
+    const token = await getSessionToken();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const qs = new URLSearchParams({
+      profileName: profile?.name || '',
+      description: profile?.description || '',
+    });
+    const res = await fetch(`/api/coze/call?${qs}`, {
+      headers: token ? { 'x-session': token } : {},
+      signal: controller.signal,
+    });
+    setMode('text');
+    setStage('connected');
+    await consumeSse(res);
   }
 
   async function startCall() {
@@ -122,26 +243,20 @@ function CallInner() {
     setMessages([]);
     setConversationId(null);
     setLivePassenger('');
+    setLiveStudent('');
+    passengerBufRef.current = '';
     try {
-      const token = await getSessionToken();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      const qs = new URLSearchParams({
-        profileName: profile?.name || '',
-        description: profile?.description || '',
-      });
-      const res = await fetch(`/api/coze/call?${qs}`, {
-        headers: token ? { 'x-session': token } : {},
-        signal: controller.signal,
-      });
-
-      setStage('connected');
-      await consumeSse(res);
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return;
-      toast.error(e?.message || '通话连接失败');
-      setStage('idle');
+      await startVoiceCall();
+    } catch (voiceErr: any) {
+      console.warn('voice fallback to text', voiceErr);
+      toast.message(voiceErr?.message || '语音暂不可用，已切文字对话');
+      try {
+        await startTextCall();
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return;
+        toast.error(e?.message || '通话连接失败');
+        setStage('idle');
+      }
     }
   }
 
@@ -150,8 +265,12 @@ function CallInner() {
     if (!text || sending) return;
     setSending(true);
     setDraft('');
-    setMessages((prev) => [...prev, { role: 'agent', content: text, ts: Date.now() }]);
+    pushMsg('agent', text);
     try {
+      if (mode === 'voice' && voiceClientRef.current) {
+        voiceClientRef.current.sendTextMessage(text);
+        return;
+      }
       const token = await getSessionToken();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -176,10 +295,27 @@ function CallInner() {
     }
   }
 
+  async function toggleMic() {
+    if (!voiceClientRef.current || mode !== 'voice') return;
+    try {
+      const next = !micOn;
+      await voiceClientRef.current.setAudioEnable(next);
+      setMicOn(next);
+    } catch (e: any) {
+      toast.error(e?.message || '麦克风切换失败');
+    }
+  }
+
   async function hangUp() {
-    if (abortRef.current) abortRef.current.abort();
+    abortRef.current?.abort();
     if (timerRef.current) clearInterval(timerRef.current);
     setStage('saving');
+    try {
+      await voiceClientRef.current?.disconnect?.();
+    } catch {
+      /* ignore */
+    }
+    voiceClientRef.current = null;
 
     try {
       const data = await apiSend<{ record: { id: string } }>('/api/trainings', 'POST', {
@@ -221,6 +357,7 @@ function CallInner() {
             if (stage === 'connected') hangUp();
             else if (stage === 'ringing') {
               abortRef.current?.abort();
+              void voiceClientRef.current?.disconnect?.();
               setStage('idle');
             } else router.back();
           }}
@@ -237,7 +374,7 @@ function CallInner() {
         {stage === 'idle' && (
           <div className="text-center">
             <p className="text-sm text-slate-200/90">旅客 {profile?.name} 在柜台前等待</p>
-            <p className="mt-1 text-xs text-slate-300/70">接通后请以值机员身份耐心接待（当前为文字对话）</p>
+            <p className="mt-1 text-xs text-slate-300/70">接通后将开启实时语音（需麦克风权限）</p>
           </div>
         )}
 
@@ -268,7 +405,8 @@ function CallInner() {
               <div className="text-2xl font-bold tabular-nums">{fmt(duration)}</div>
               <p className="mt-1 flex items-center justify-center gap-1.5 text-sm text-emerald-300">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-                通话中{conversationId ? ' · 已连接扣子' : ''}
+                {mode === 'voice' ? '语音通话中' : '文字通话中'}
+                {speaking ? ' · 正在听你说' : ''}
               </p>
             </div>
 
@@ -277,9 +415,7 @@ function CallInner() {
                 <div key={i} className={`flex ${m.role === 'agent' ? 'justify-end' : 'justify-start'}`}>
                   <div
                     className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm backdrop-blur ${
-                      m.role === 'agent'
-                        ? 'rounded-br-md bg-emerald-600/80'
-                        : 'rounded-bl-md bg-black/50'
+                      m.role === 'agent' ? 'rounded-br-md bg-emerald-600/80' : 'rounded-bl-md bg-black/50'
                     }`}
                   >
                     <span className="mb-0.5 block text-[10px] font-medium opacity-80">
@@ -297,8 +433,16 @@ function CallInner() {
                   </div>
                 </div>
               )}
+              {liveStudent && (
+                <div className="flex justify-end">
+                  <div className="max-w-[85%] rounded-2xl rounded-br-md bg-emerald-600/50 px-3.5 py-2 text-sm backdrop-blur">
+                    <span className="mb-0.5 block text-[10px] font-medium opacity-80">识别中…</span>
+                    {liveStudent}
+                  </div>
+                </div>
+              )}
               {messages.length === 0 && !livePassenger && (
-                <p className="mt-3 text-center text-xs text-slate-300/70">旅 客 正 在 说 话…</p>
+                <p className="mt-3 text-center text-xs text-slate-300/70">请对着麦克风说话，或下方打字辅助</p>
               )}
             </div>
           </div>
@@ -325,6 +469,7 @@ function CallInner() {
           <button
             onClick={() => {
               abortRef.current?.abort();
+              void voiceClientRef.current?.disconnect?.();
               setStage('idle');
             }}
             className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-600 shadow-lg transition active:scale-95"
@@ -344,7 +489,7 @@ function CallInner() {
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="输入值机员话术，回车发送…"
+                placeholder={mode === 'voice' ? '也可打字辅助发言…' : '输入值机员话术，回车发送…'}
                 className="flex-1 rounded-full border border-white/15 bg-black/40 px-4 py-2.5 text-sm outline-none backdrop-blur placeholder:text-slate-400"
                 disabled={sending}
               />
@@ -356,17 +501,28 @@ function CallInner() {
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </button>
             </form>
-            <div className="flex items-center gap-2 text-xs text-slate-200/80">
-              <Mic className="h-4 w-4" />
-              语音收音稍后接入；当前请打字作答
+            <div className="flex items-center gap-4">
+              {mode === 'voice' && (
+                <button
+                  type="button"
+                  onClick={toggleMic}
+                  className={`flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition active:scale-95 ${
+                    micOn ? 'bg-sky-500' : 'bg-slate-600'
+                  }`}
+                >
+                  {micOn ? <Mic className="h-6 w-6" /> : <MicOff className="h-6 w-6" />}
+                </button>
+              )}
+              <button
+                onClick={hangUp}
+                className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 shadow-xl shadow-red-500/40 transition active:scale-95"
+              >
+                <PhoneOff className="h-6 w-6 text-white" />
+              </button>
             </div>
-            <button
-              onClick={hangUp}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 shadow-xl shadow-red-500/40 transition active:scale-95"
-            >
-              <PhoneOff className="h-6 w-6 text-white" />
-            </button>
-            <p className="text-xs text-slate-300/80">点击挂断，生成训练总结</p>
+            <p className="text-xs text-slate-300/80">
+              {mode === 'voice' ? (micOn ? '麦克风已开，请用普通话作答' : '麦克风已静音') : '文字模式'} · 挂断后生成训练总结
+            </p>
           </>
         )}
         {stage === 'saving' && <div className="h-16" />}

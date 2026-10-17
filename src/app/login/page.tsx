@@ -110,7 +110,7 @@ export default function LoginPage() {
           </p>
         </form>
 
-        <p className="mt-6 text-center text-xs text-slate-600">管理员演示账号：admin@coze.dev / Admin@123456（仅开发环境）</p>
+        <p className="mt-6 text-center text-xs text-slate-600">管理员：13699225251 / Admin123456</p>
       </div>
     </main>
   );
