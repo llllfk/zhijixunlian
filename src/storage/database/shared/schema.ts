@@ -59,6 +59,9 @@ export const trainingRecords = pgTable(
 		score: integer("score"), // 总分 0-100
 		scores: jsonb("scores"), // { 维度: 分数 }
 		result: jsonb("result"), // { dimensions, suggestions, transcript, ... }
+		teacher_comment: text("teacher_comment"),
+		teacher_commented_at: timestamp("teacher_commented_at", { withTimezone: true }),
+		teacher_id: varchar("teacher_id", { length: 36 }),
 		started_at: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 	},

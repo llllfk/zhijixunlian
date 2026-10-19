@@ -121,6 +121,21 @@ function ResultInner() {
           </div>
         </div>
 
+        {/* 老师点评 */}
+        {record.teacher_comment?.trim() ? (
+          <div className="mx-auto max-w-md px-4 pt-6">
+            <div className="rounded-3xl border border-amber-400/25 bg-amber-500/10 p-5">
+              <div className="mb-2 flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-amber-100">老师点评</h2>
+                <span className="rounded-full bg-amber-500/25 px-2 py-0.5 text-[11px] font-medium text-amber-200">
+                  老师已点评
+                </span>
+              </div>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-100">{record.teacher_comment}</p>
+            </div>
+          </div>
+        ) : null}
+
         {/* 改进建议 */}
         <div className="mx-auto max-w-md px-4 pt-6">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">

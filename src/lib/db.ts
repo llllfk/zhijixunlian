@@ -74,6 +74,9 @@ CREATE TABLE IF NOT EXISTS training_records (
   score integer,
   scores jsonb,
   result jsonb,
+  teacher_comment text,
+  teacher_commented_at timestamptz,
+  teacher_id varchar(36),
   started_at timestamptz NOT NULL DEFAULT now(),
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -87,6 +90,9 @@ ALTER TABLE training_records ADD COLUMN IF NOT EXISTS scores jsonb;
 ALTER TABLE training_records ADD COLUMN IF NOT EXISTS result jsonb;
 ALTER TABLE training_records ADD COLUMN IF NOT EXISTS started_at timestamptz DEFAULT now();
 ALTER TABLE training_records ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+ALTER TABLE training_records ADD COLUMN IF NOT EXISTS teacher_comment text;
+ALTER TABLE training_records ADD COLUMN IF NOT EXISTS teacher_commented_at timestamptz;
+ALTER TABLE training_records ADD COLUMN IF NOT EXISTS teacher_id varchar(36);
 
 CREATE UNIQUE INDEX IF NOT EXISTS user_profiles_email_uidx ON user_profiles(email);
 CREATE UNIQUE INDEX IF NOT EXISTS user_profiles_phone_uidx ON user_profiles(phone);

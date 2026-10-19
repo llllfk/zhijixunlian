@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Pencil, Trash2, KeyRound, Loader2 } from 'lucide-react';
 import { AuthProvider } from '@/components/auth';
-import { apiGet, apiSend } from '@/lib/client-api';
+import { apiGet, apiSend, getSessionTokenSync } from '@/lib/client-api';
 import { toast } from 'sonner';
 import { UserProfileInfo, PassengerProfile, TrainingRecord, RADAR_DIMENSIONS, VoiceOption } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,38 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DialogueTranscript } from '@/components/dialogue-transcript';
 import { VoicePicker } from '@/components/voice-picker';
+
+function compressBackground(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      const maxW = 1280;
+      const scale = img.width > maxW ? maxW / img.width : 1;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('图片处理失败'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(objectUrl);
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error('图片处理失败'))),
+        'image/jpeg',
+        0.82
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('无法读取这张图片'));
+    };
+    img.src = objectUrl;
+  });
+}
 
 function scoreTone(v: number) {
   if (v >= 85) return { text: 'text-emerald-300', bar: 'bg-emerald-400' };
@@ -147,6 +179,7 @@ function ProfilesTab() {
   const [profiles, setProfiles] = useState<PassengerProfile[]>([]);
   const [draft, setDraft] = useState<ProfileDraft | null>(null);
   const [voiceNames, setVoiceNames] = useState<Record<string, string>>({});
+  const [uploadingBg, setUploadingBg] = useState(false);
 
   const load = useCallback(() => {
     apiGet<{ profiles: PassengerProfile[] }>('/api/admin/profiles').then((d) => setProfiles(d.profiles ?? [])).catch((e) => toast.error(e?.message));
@@ -200,6 +233,36 @@ function ProfilesTab() {
       load();
     } catch (e: any) {
       toast.error(e?.message);
+    }
+  }
+
+  async function uploadBackground(file: File) {
+    if (!file.type.startsWith('image/')) {
+      toast.error('请选择图片文件');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('图片请小于 8MB');
+      return;
+    }
+    setUploadingBg(true);
+    try {
+      const blob = await compressBackground(file);
+      const body = new FormData();
+      body.append('file', blob, 'background.jpg');
+      const token = getSessionTokenSync();
+      const res = await fetch('/api/admin/uploads', {
+        method: 'POST',
+        headers: token ? { 'x-session': token } : {},
+        body,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || '上传失败');
+      setDraft((d) => (d ? { ...d, background_url: data.url } : d));
+    } catch (e: any) {
+      toast.error(e?.message || '上传失败');
+    } finally {
+      setUploadingBg(false);
     }
   }
 
@@ -275,8 +338,34 @@ function ProfilesTab() {
               <Textarea value={draft?.description || ''} onChange={(e) => setDraft((d) => (d ? { ...d, description: e.target.value } : d))} placeholder="一句话介绍该旅客特征与训练要点" />
             </div>
             <div className="space-y-1">
-              <Label className="text-slate-800">背景图 URL</Label>
-              <Input value={draft?.background_url || ''} onChange={(e) => setDraft((d) => (d ? { ...d, background_url: e.target.value } : d))} placeholder="/passengers/xxx.jpg 或 https://…" />
+              <Label className="text-slate-800">背景图</Label>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                disabled={uploadingBg}
+                className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-1.5 file:text-sm file:text-white disabled:opacity-60"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void uploadBackground(file);
+                  e.target.value = '';
+                }}
+              />
+              {uploadingBg && <p className="text-xs text-slate-500">正在上传…</p>}
+              {draft?.background_url ? (
+                <div className="mt-2 overflow-hidden rounded-xl border border-slate-200">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={draft.background_url} alt="背景预览" className="h-28 w-full object-cover" />
+                  <button
+                    type="button"
+                    className="w-full py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                    onClick={() => setDraft((d) => (d ? { ...d, background_url: '' } : d))}
+                  >
+                    移除图片
+                  </button>
+                </div>
+              ) : (
+                !uploadingBg && <p className="text-xs text-slate-500">从本机选择图片，上传后作为通话背景。</p>
+              )}
             </div>
             {draft && (
               <VoicePicker
@@ -299,7 +388,7 @@ function ProfilesTab() {
             <Button variant="outline" onClick={() => setDraft(null)}>
               取消
             </Button>
-            <Button onClick={save}>保存</Button>
+            <Button onClick={save} disabled={uploadingBg}>保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -313,6 +402,8 @@ function RecordsTab() {
   const [users, setUsers] = useState<UserProfileInfo[]>([]);
   const [userId, setUserId] = useState<string>('all');
   const [view, setView] = useState<TrainingRecord | null>(null);
+  const [teacherDraft, setTeacherDraft] = useState('');
+  const [savingComment, setSavingComment] = useState(false);
 
   const load = useCallback(() => {
     const q = userId && userId !== 'all' ? `?userId=${encodeURIComponent(userId)}` : '';
@@ -324,6 +415,52 @@ function RecordsTab() {
   useEffect(() => {
     apiGet<{ users: UserProfileInfo[] }>('/api/admin/users').then((d) => setUsers(d.users ?? [])).catch(() => {});
   }, []);
+
+  function openView(r: TrainingRecord) {
+    setView(r);
+    setTeacherDraft(r.teacher_comment || '');
+  }
+
+  async function saveTeacherComment() {
+    if (!view) return;
+    const text = teacherDraft.trim();
+    if (!text) return toast.error('请填写点评内容');
+    setSavingComment(true);
+    try {
+      const data = await apiSend<{ record: TrainingRecord }>(`/api/admin/records/${view.id}`, 'PUT', {
+        teacher_comment: text,
+      });
+      const next = data.record;
+      setView(next);
+      setTeacherDraft(next.teacher_comment || '');
+      setRecords((list) => list.map((item) => (item.id === next.id ? next : item)));
+      toast.success('点评已保存');
+    } catch (e: any) {
+      toast.error(e?.message || '保存失败');
+    } finally {
+      setSavingComment(false);
+    }
+  }
+
+  async function clearTeacherComment() {
+    if (!view) return;
+    if (!confirm('确定清除该条老师点评？')) return;
+    setSavingComment(true);
+    try {
+      const data = await apiSend<{ record: TrainingRecord }>(`/api/admin/records/${view.id}`, 'PUT', {
+        teacher_comment: '',
+      });
+      const next = data.record;
+      setView(next);
+      setTeacherDraft('');
+      setRecords((list) => list.map((item) => (item.id === next.id ? next : item)));
+      toast.success('已清除点评');
+    } catch (e: any) {
+      toast.error(e?.message || '操作失败');
+    } finally {
+      setSavingComment(false);
+    }
+  }
 
   async function remove(r: TrainingRecord) {
     if (!confirm('确定删除该训练记录？')) return;
@@ -337,6 +474,7 @@ function RecordsTab() {
   }
 
   const nameOf = (uid: string) => users.find((u) => u.id === uid)?.name || '—';
+  const hasTeacherComment = (r: TrainingRecord) => Boolean(r.teacher_comment?.trim());
 
   return (
     <div className="space-y-3">
@@ -360,15 +498,20 @@ function RecordsTab() {
         <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-semibold">{r.profile_name || '旅客'}</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold">{r.profile_name || '旅客'}</span>
+                {hasTeacherComment(r) && (
+                  <Badge className="bg-amber-500/20 text-amber-200">已点评</Badge>
+                )}
+              </div>
               <p className="text-xs text-slate-300">学员：{nameOf(r.user_id)} · {fmtDate(r.created_at)}</p>
               <p className="text-xs text-slate-300">时长 {Math.floor((r.duration_seconds || 0) / 60)} 分 {r.duration_seconds % 60} 秒</p>
             </div>
             <span className={`text-xl font-bold ${(r.score ?? 0) >= 85 ? 'text-emerald-400' : (r.score ?? 0) >= 70 ? 'text-amber-300' : 'text-red-400'}`}>{r.score ?? '—'}</span>
           </div>
           <div className="mt-3 flex gap-2">
-            <Button size="sm" variant="outline" className="h-8 border-white/20 bg-transparent text-slate-100 hover:bg-white/10 hover:text-white" onClick={() => setView(r)}>
-              查看详情
+            <Button size="sm" variant="outline" className="h-8 border-white/20 bg-transparent text-slate-100 hover:bg-white/10 hover:text-white" onClick={() => openView(r)}>
+              {hasTeacherComment(r) ? '查看 / 改点评' : '查看详情'}
             </Button>
             <Button size="sm" variant="outline" className="h-8 border-red-500/30 text-red-400" onClick={() => remove(r)}>
               删除
@@ -377,7 +520,15 @@ function RecordsTab() {
         </div>
       ))}
 
-      <Dialog open={!!view} onOpenChange={(o) => !o && setView(null)}>
+      <Dialog
+        open={!!view}
+        onOpenChange={(o) => {
+          if (!o) {
+            setView(null);
+            setTeacherDraft('');
+          }
+        }}
+      >
         <DialogContent className="max-h-[86vh] max-w-md gap-0 overflow-x-hidden overflow-y-auto border-white/10 bg-slate-950 p-0 text-white">
           <DialogHeader className="sticky top-0 z-10 border-b border-white/10 bg-slate-950/95 px-5 py-4 text-left backdrop-blur">
             <DialogTitle className="text-white">训练结果详情</DialogTitle>
@@ -385,12 +536,12 @@ function RecordsTab() {
               {view ? `${nameOf(view.user_id)} · ${view.profile_name || '旅客'}` : ''}
             </DialogDescription>
           </DialogHeader>
-          {view?.result && (
+          {view && (
             <div className="space-y-4 px-4 py-4">
               <div className="rounded-3xl border border-sky-400/20 bg-gradient-to-br from-sky-500/20 to-blue-600/10 px-5 py-5 text-center">
                 <p className="text-xs tracking-wide text-sky-200/80">综合得分</p>
-                <p className={`mt-1 text-5xl font-extrabold tabular-nums ${scoreTone(view.score ?? view.result.total_score).text}`}>
-                  {view.score ?? view.result.total_score}
+                <p className={`mt-1 text-5xl font-extrabold tabular-nums ${scoreTone(view.score ?? view.result?.total_score ?? 0).text}`}>
+                  {view.score ?? view.result?.total_score ?? '—'}
                 </p>
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-300">
                   <span className="rounded-full bg-white/10 px-2.5 py-1">
@@ -400,45 +551,70 @@ function RecordsTab() {
                 </div>
               </div>
 
-              <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="mb-3 text-sm font-semibold text-slate-200">能力维度</p>
-                <div className="space-y-3">
-                  {RADAR_DIMENSIONS.map((k) => {
-                    const v = Number((view.result?.dimensions as any)?.[k] ?? 0);
-                    const tone = scoreTone(v);
-                    return (
-                      <div key={k}>
-                        <div className="mb-1 flex items-center justify-between text-xs">
-                          <span className="text-slate-300">{k}</span>
-                          <span className={`font-semibold tabular-nums ${tone.text}`}>{v}</span>
-                        </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                          <div className={`h-full rounded-full ${tone.bar}`} style={{ width: `${Math.max(0, Math.min(100, v))}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+              <section className="rounded-3xl border border-amber-400/25 bg-amber-500/10 p-4">
+                <p className="mb-2 text-sm font-semibold text-amber-100">老师点评</p>
+                <Textarea
+                  value={teacherDraft}
+                  onChange={(e) => setTeacherDraft(e.target.value)}
+                  placeholder="填写对本场练习的点评与改进建议…"
+                  className="min-h-28 border-white/15 bg-slate-950/50 text-slate-100 placeholder:text-slate-500"
+                  maxLength={2000}
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" disabled={savingComment} onClick={saveTeacherComment}>
+                    {savingComment ? '保存中…' : '保存点评'}
+                  </Button>
+                  {hasTeacherComment(view) && (
+                    <Button size="sm" variant="outline" className="border-white/20 bg-transparent text-slate-200" disabled={savingComment} onClick={clearTeacherComment}>
+                      清除点评
+                    </Button>
+                  )}
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="mb-3 text-sm font-semibold text-slate-200">改进建议</p>
-                <ul className="space-y-2">
-                  {(view.result.suggestions || []).map((s, i) => (
-                    <li key={i} className="flex gap-2.5 rounded-2xl bg-white/[0.05] px-3 py-2.5 text-sm leading-relaxed text-slate-200">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-[11px] font-semibold text-sky-300">
-                        {i + 1}
-                      </span>
-                      <span className="min-w-0 break-all">{s}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+              {view.result && (
+                <>
+                  <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                    <p className="mb-3 text-sm font-semibold text-slate-200">能力维度</p>
+                    <div className="space-y-3">
+                      {RADAR_DIMENSIONS.map((k) => {
+                        const v = Number((view.result?.dimensions as any)?.[k] ?? 0);
+                        const tone = scoreTone(v);
+                        return (
+                          <div key={k}>
+                            <div className="mb-1 flex items-center justify-between text-xs">
+                              <span className="text-slate-300">{k}</span>
+                              <span className={`font-semibold tabular-nums ${tone.text}`}>{v}</span>
+                            </div>
+                            <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                              <div className={`h-full rounded-full ${tone.bar}`} style={{ width: `${Math.max(0, Math.min(100, v))}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
 
-              <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="mb-3 text-sm font-semibold text-slate-200">对话记录</p>
-                <DialogueTranscript messages={view.result.transcript} passengerName={view.profile_name || '旅客'} />
-              </section>
+                  <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                    <p className="mb-3 text-sm font-semibold text-slate-200">改进建议</p>
+                    <ul className="space-y-2">
+                      {(view.result.suggestions || []).map((s, i) => (
+                        <li key={i} className="flex gap-2.5 rounded-2xl bg-white/[0.05] px-3 py-2.5 text-sm leading-relaxed text-slate-200">
+                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-[11px] font-semibold text-sky-300">
+                            {i + 1}
+                          </span>
+                          <span className="min-w-0 break-all">{s}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                    <p className="mb-3 text-sm font-semibold text-slate-200">对话记录</p>
+                    <DialogueTranscript messages={view.result.transcript} passengerName={view.profile_name || '旅客'} />
+                  </section>
+                </>
+              )}
             </div>
           )}
         </DialogContent>

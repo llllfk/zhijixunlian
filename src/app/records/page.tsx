@@ -68,9 +68,16 @@ function RecordsInner() {
                   <User className="h-6 w-6 text-sky-300" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold">{r.profile_name || '旅客'}</span>
-                    <span className={`text-lg font-bold tabular-nums ${scoreTone(r.score)}`}>{r.score ?? '—'}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="font-semibold">{r.profile_name || '旅客'}</span>
+                      {r.teacher_comment?.trim() ? (
+                        <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-200">
+                          老师已点评
+                        </span>
+                      ) : null}
+                    </div>
+                    <span className={`shrink-0 text-lg font-bold tabular-nums ${scoreTone(r.score)}`}>{r.score ?? '—'}</span>
                   </div>
                   <div className="mt-1 flex items-center gap-3 text-xs text-slate-500">
                     <span>{fmtDate(r.created_at)}</span>

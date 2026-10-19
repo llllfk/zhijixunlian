@@ -56,6 +56,10 @@ export interface TrainingRecord {
   score: number | null;
   scores: Record<RadarKey, number> | null;
   result: EvalResult | null;
+  /** 老师文字点评；有内容时学生端显示「老师已点评」 */
+  teacher_comment: string | null;
+  teacher_commented_at?: string | null;
+  teacher_id?: string | null;
   started_at: string;
   created_at: string;
 }

@@ -90,6 +90,12 @@ logs/
 # Preview files
 .preview
 
+# 管理端上传的画像背景图
+public/uploads/**
+!public/uploads/.gitkeep
+!public/uploads/profiles/
+!public/uploads/profiles/.gitkeep
+
 # CodeGraph index
 .codegraph
 # Dependencies
