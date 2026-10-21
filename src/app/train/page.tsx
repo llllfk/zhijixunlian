@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Phone, Loader2 } from 'lucide-react';
-import { AuthProvider, useAuth } from '@/components/auth';
+import { AuthProvider } from '@/components/auth';
 import { apiGet } from '@/lib/client-api';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -17,7 +17,6 @@ interface Profile {
 
 function TrainInner() {
   const router = useRouter();
-  const { user } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,7 +39,7 @@ function TrainInner() {
         </button>
         <div>
           <h1 className="text-lg font-bold">选择旅客画像</h1>
-          <p className="text-xs text-slate-400">选择一位旅客，模拟接听值机电话，{user?.name}</p>
+          <p className="text-xs text-slate-400">选择一位旅客，开始模拟办理值机</p>
         </div>
       </header>
 
@@ -49,7 +48,7 @@ function TrainInner() {
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 w-full rounded-3xl bg-white/5" />)
         ) : (
           <>
-            <p className="px-1 text-xs text-slate-500">共 {profiles.length} 位旅客在候机大厅等待，选择一位开始接通</p>
+            <p className="px-1 text-xs text-slate-500">旅客已经在等待值机，可以选择一位开始办理</p>
             {profiles.map((p) => (
               <button
                 key={p.id}

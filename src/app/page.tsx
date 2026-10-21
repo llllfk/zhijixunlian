@@ -40,10 +40,10 @@ function HomeInner() {
       <div className="relative z-10 flex flex-1 flex-col justify-center gap-5 px-5 pb-12">
         <div className="text-center">
           <p className="text-3xl font-extrabold leading-snug">
-            通关值机
-            <span className="bg-gradient-to-r from-sky-400 to-blue-500 bg-clip-text text-transparent">服务通关训练</span>
+            空港值机
+            <span className="bg-gradient-to-r from-sky-400 to-blue-500 bg-clip-text text-transparent">服务训练</span>
           </p>
-          <p className="mt-2 text-sm text-slate-400">模拟接听旅客电话，边练边学，AI 实时评价</p>
+          <p className="mt-2 text-sm text-slate-400">与模拟旅客对话，边练边学，AI 实时评价</p>
         </div>
 
         {/* 主入口：开始训练 */}
@@ -54,7 +54,7 @@ function HomeInner() {
             </div>
             <div className="flex-1">
               <h2 className="text-lg font-bold">开始训练</h2>
-              <p className="text-sm text-slate-300">选择旅客画像，拨打一通值机电话</p>
+              <p className="text-sm text-slate-300">选择旅客画像，模拟值机服务对话</p>
             </div>
             <span className="text-2xl text-slate-300 transition group-hover:translate-x-1">›</span>
           </div>

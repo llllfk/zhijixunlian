@@ -109,8 +109,6 @@ export default function LoginPage() {
             </Link>
           </p>
         </form>
-
-        <p className="mt-6 text-center text-xs text-slate-600">管理员：13699225251 / Admin123456</p>
       </div>
     </main>
   );
