@@ -1,7 +1,6 @@
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/server-auth';
+import { uploadProfileBackground } from '@/lib/storage';
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const EXT: Record<string, string> = {
@@ -11,7 +10,7 @@ const EXT: Record<string, string> = {
   'image/gif': 'gif',
 };
 
-/** 管理端上传画像背景图，保存到 public/uploads/profiles，返回可访问路径 */
+/** 管理端上传画像背景图到扣子 S3，返回对象键与可预览签名 URL */
 export async function POST(req: NextRequest) {
   try {
     await requireAdmin(req);
@@ -33,10 +32,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '图片请小于 8MB' }, { status: 400 });
   }
 
-  const filename = `${crypto.randomUUID()}.${ext}`;
-  const dir = path.join(process.cwd(), 'public', 'uploads', 'profiles');
-  await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, filename), Buffer.from(await file.arrayBuffer()));
-
-  return NextResponse.json({ url: `/uploads/profiles/${filename}` });
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const { key, url } = await uploadProfileBackground(buffer, file.type, ext);
+    // key 入库；url 仅用于前端即时预览
+    return NextResponse.json({ key, url });
+  } catch (e: unknown) {
+    const err = e as { message?: string };
+    console.error('[uploads] S3 upload failed', err);
+    return NextResponse.json(
+      { error: err?.message || '上传到对象存储失败，请确认已接入扣子对象存储' },
+      { status: 500 }
+    );
+  }
 }

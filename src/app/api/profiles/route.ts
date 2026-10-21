@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDb, getPool } from '@/lib/db';
 import { resolveAuth } from '@/lib/server-auth';
+import { resolveProfileBackgrounds } from '@/lib/storage';
 
 export async function GET(req: NextRequest) {
   const ctx = await resolveAuth(req);
@@ -11,5 +12,6 @@ export async function GET(req: NextRequest) {
   const { rows } = await getPool().query(
     `SELECT * FROM passenger_profiles WHERE is_active = true ORDER BY sort_order ASC`
   );
-  return NextResponse.json({ profiles: rows });
+  const profiles = await resolveProfileBackgrounds(rows);
+  return NextResponse.json({ profiles });
 }

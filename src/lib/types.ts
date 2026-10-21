@@ -30,7 +30,10 @@ export interface PassengerProfile {
   id: string;
   name: string;
   description: string | null;
+  /** 展示用：外链、本地路径，或由 S3 key 签发后的临时 URL */
   background_url: string | null;
+  /** 入库用的 S3 对象键；有值时保存画像应写回该字段，避免把签名 URL 存进库 */
+  background_key?: string | null;
   /** 扣子音色 ID，仅存库；管理端用名称+试听选择，不向学员展示 */
   voice_id?: string | null;
   is_active: boolean;

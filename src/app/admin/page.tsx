@@ -169,7 +169,10 @@ interface ProfileDraft {
   id?: string;
   name: string;
   description: string;
+  /** 入库值：S3 key / 本地路径 / 外链 */
   background_url: string;
+  /** 仅预览用的签名 URL */
+  background_preview: string;
   voice_id: string;
   is_active: boolean;
   sort_order: number;
@@ -196,14 +199,24 @@ function ProfilesTab() {
   }, []);
 
   function openCreate() {
-    setDraft({ name: '', description: '', background_url: '', voice_id: '', is_active: true, sort_order: profiles.length + 1 });
+    setDraft({
+      name: '',
+      description: '',
+      background_url: '',
+      background_preview: '',
+      voice_id: '',
+      is_active: true,
+      sort_order: profiles.length + 1,
+    });
   }
   function openEdit(p: PassengerProfile) {
+    const persist = p.background_key || p.background_url || '';
     setDraft({
       id: p.id,
       name: p.name,
       description: p.description || '',
-      background_url: p.background_url || '',
+      background_url: persist,
+      background_preview: p.background_url || '',
       voice_id: p.voice_id || '',
       is_active: p.is_active,
       sort_order: p.sort_order,
@@ -213,11 +226,20 @@ function ProfilesTab() {
   async function save() {
     if (!draft) return;
     if (!draft.name.trim()) return toast.error('请填写画像名称');
+    const payload = {
+      name: draft.name,
+      description: draft.description,
+      voice_id: draft.voice_id,
+      is_active: draft.is_active,
+      sort_order: draft.sort_order,
+      background_key: draft.background_url || null,
+      background_url: draft.background_url || null,
+    };
     try {
       if (draft.id) {
-        await apiSend(`/api/admin/profiles/${draft.id}`, 'PUT', draft);
+        await apiSend(`/api/admin/profiles/${draft.id}`, 'PUT', payload);
       } else {
-        await apiSend('/api/admin/profiles', 'POST', draft);
+        await apiSend('/api/admin/profiles', 'POST', payload);
       }
       toast.success('已保存');
       setDraft(null);
@@ -229,7 +251,7 @@ function ProfilesTab() {
 
   async function toggle(p: PassengerProfile) {
     try {
-      await apiSend(`/api/admin/profiles/${p.id}`, 'PUT', { ...p, is_active: !p.is_active });
+      await apiSend(`/api/admin/profiles/${p.id}`, 'PUT', { is_active: !p.is_active });
       load();
     } catch (e: any) {
       toast.error(e?.message);
@@ -258,7 +280,16 @@ function ProfilesTab() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || '上传失败');
-      setDraft((d) => (d ? { ...d, background_url: data.url } : d));
+      if (!data.key) throw new Error(data?.error || '上传成功但未返回对象键');
+      setDraft((d) =>
+        d
+          ? {
+              ...d,
+              background_url: data.key as string,
+              background_preview: (data.url as string) || '',
+            }
+          : d
+      );
     } catch (e: any) {
       toast.error(e?.message || '上传失败');
     } finally {
@@ -350,21 +381,27 @@ function ProfilesTab() {
                   e.target.value = '';
                 }}
               />
-              {uploadingBg && <p className="text-xs text-slate-500">正在上传…</p>}
-              {draft?.background_url ? (
+              {uploadingBg && <p className="text-xs text-slate-500">正在上传到对象存储…</p>}
+              {draft?.background_url || draft?.background_preview ? (
                 <div className="mt-2 overflow-hidden rounded-xl border border-slate-200">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={draft.background_url} alt="背景预览" className="h-28 w-full object-cover" />
+                  <img
+                    src={draft.background_preview || draft.background_url}
+                    alt="背景预览"
+                    className="h-28 w-full object-cover"
+                  />
                   <button
                     type="button"
                     className="w-full py-1.5 text-xs text-slate-600 hover:bg-slate-50"
-                    onClick={() => setDraft((d) => (d ? { ...d, background_url: '' } : d))}
+                    onClick={() =>
+                      setDraft((d) => (d ? { ...d, background_url: '', background_preview: '' } : d))
+                    }
                   >
                     移除图片
                   </button>
                 </div>
               ) : (
-                !uploadingBg && <p className="text-xs text-slate-500">从本机选择图片，上传后作为通话背景。</p>
+                !uploadingBg && <p className="text-xs text-slate-500">从本机选择图片，上传到扣子对象存储后作为通话背景。</p>
               )}
             </div>
             {draft && (

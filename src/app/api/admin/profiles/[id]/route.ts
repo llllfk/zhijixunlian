@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDb, getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/server-auth';
+import { resolveProfileBackground } from '@/lib/storage';
+
+function persistBackgroundUrl(body: Record<string, unknown>): string | null {
+  if ('background_key' in body) {
+    const key = body.background_key;
+    if (key === null || key === '') return null;
+    if (typeof key === 'string') return key.trim() || null;
+  }
+  if ('background_url' in body) {
+    const url = body.background_url;
+    if (url === null || url === '') return null;
+    if (typeof url === 'string') return url.trim() || null;
+  }
+  return null;
+}
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -17,6 +32,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     body.voice_id === null || body.voice_id === undefined || body.voice_id === ''
       ? null
       : String(body.voice_id);
+  const bgProvided = 'background_key' in body || 'background_url' in body;
   const { rows } = await getPool().query(
     `UPDATE passenger_profiles SET
        name = COALESCE($2, name),
@@ -32,15 +48,16 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       body.name ? String(body.name).trim() : null,
       'description' in body,
       body.description ?? null,
-      'background_url' in body,
-      body.background_url ?? null,
+      bgProvided,
+      persistBackgroundUrl(body),
       voiceProvided,
       voiceId,
       typeof body.is_active === 'boolean' ? body.is_active : null,
       'sort_order' in body ? Number(body.sort_order) : null,
     ]
   );
-  return NextResponse.json({ profile: rows[0] || null });
+  const profile = rows[0] ? await resolveProfileBackground(rows[0]) : null;
+  return NextResponse.json({ profile });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

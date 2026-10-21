@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDb, getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/server-auth';
+import { resolveProfileBackground, resolveProfileBackgrounds } from '@/lib/storage';
+
+function persistBackgroundUrl(body: Record<string, unknown>): string | null {
+  if (typeof body.background_key === 'string' && body.background_key.trim()) {
+    return body.background_key.trim();
+  }
+  if (typeof body.background_url === 'string') {
+    return body.background_url.trim() || null;
+  }
+  return null;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,7 +22,8 @@ export async function GET(req: NextRequest) {
   }
   await ensureDb();
   const { rows } = await getPool().query(`SELECT * FROM passenger_profiles ORDER BY sort_order ASC`);
-  return NextResponse.json({ profiles: rows });
+  const profiles = await resolveProfileBackgrounds(rows);
+  return NextResponse.json({ profiles });
 }
 
 export async function POST(req: NextRequest) {
@@ -36,11 +48,12 @@ export async function POST(req: NextRequest) {
       crypto.randomUUID(),
       name,
       body.description || null,
-      body.background_url || null,
+      persistBackgroundUrl(body),
       voiceId,
       body.is_active !== false,
       Number(body.sort_order) || 0,
     ]
   );
-  return NextResponse.json({ profile: rows[0] });
+  const profile = await resolveProfileBackground(rows[0]);
+  return NextResponse.json({ profile });
 }
